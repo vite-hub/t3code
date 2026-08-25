@@ -122,6 +122,14 @@ function renderTabs(
   );
 }
 
+describe("RightPanelTabs tab layout", () => {
+  it("keeps the add-surface button beside the last tab", () => {
+    const html = renderTabs(null);
+    expect(html).toContain('class="flex h-full w-max items-center gap-1"');
+    expect(html).not.toContain("w-max min-w-full");
+  });
+});
+
 describe("RightPanelTabs preview favicon", () => {
   it("prefers a live capture and never asks Google about a private hostname", () => {
     const captured = renderTabs(favicon("data:image/png;base64,AAAA", "http://24x.xf.local/"));
