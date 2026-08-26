@@ -2,13 +2,7 @@
   "name": "@t3tools/provider-runtime",
   "version": "0.0.33",
   "description": "Embeddable T3 Code provider runtime.",
-  "keywords": [],
-  "homepage": "https://github.com/vite-hub/t3code#readme",
-  "bugs": {
-    "url": "https://github.com/vite-hub/t3code/issues"
-  },
   "license": "MIT",
-  "author": "",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/vite-hub/t3code.git",
@@ -18,7 +12,6 @@
     "dist"
   ],
   "type": "module",
-  "main": "index.js",
   "types": "./dist/index.d.mts",
   "exports": {
     ".": {
