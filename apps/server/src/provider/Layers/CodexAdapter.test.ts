@@ -390,6 +390,7 @@ sessionErrorLayer("CodexAdapterLive session errors", (it) => {
           input: "hello",
           modelSelection: createModelSelection(ProviderInstanceId.make("codex"), "gpt-5.3-codex", [
             { id: "reasoningEffort", value: "high" },
+            { id: "reasoningSummary", value: "detailed" },
             { id: "serviceTier", value: "priority" },
           ]),
           attachments: [],
@@ -400,6 +401,7 @@ sessionErrorLayer("CodexAdapterLive session errors", (it) => {
         input: "hello",
         model: "gpt-5.3-codex",
         effort: "high",
+        summary: "detailed",
         serviceTier: "priority",
       });
     }),

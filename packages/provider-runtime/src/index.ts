@@ -35,6 +35,7 @@ import type { ProviderAdapterError } from "../../../apps/server/src/provider/Err
 import { makeClaudeAdapter } from "../../../apps/server/src/provider/Layers/ClaudeAdapter.ts";
 import { makeCodexAdapter } from "../../../apps/server/src/provider/Layers/CodexAdapter.ts";
 import type { ProviderAdapterShape } from "../../../apps/server/src/provider/Services/ProviderAdapter.ts";
+import { createRuntimeModelSelection, withRuntimeModelSelection } from "./model-options.ts";
 
 export type ProviderRuntimeKind = "claude-code" | "codex";
 
@@ -49,6 +50,7 @@ export interface ProviderRuntimeStartInput extends Omit<
 > {
   readonly mcp?: ProviderRuntimeMcpServer;
   readonly model?: string;
+  readonly modelOptions?: Readonly<Record<string, string | boolean>>;
   readonly runtimeMode?: RuntimeMode;
 }
 
@@ -135,6 +137,7 @@ export async function createProviderRuntime(
   }
   let closed = false;
   const sessionIds = new Set<ThreadId>();
+  const sessionModelSelections = new Map<ThreadId, ProviderSendTurnInput["modelSelection"]>();
 
   const run = <A>(effect: Effect.Effect<A, ProviderAdapterError>): Promise<A> => {
     if (closed) return Promise.reject(new Error("T3 provider runtime is closed."));
@@ -149,6 +152,7 @@ export async function createProviderRuntime(
       closed = true;
       for (const threadId of sessionIds) McpProviderSession.clearMcpProviderSession(threadId);
       sessionIds.clear();
+      sessionModelSelections.clear();
       try {
         await runtime.runPromise(adapter.stopAll());
       } finally {
@@ -165,9 +169,14 @@ export async function createProviderRuntime(
       run(adapter.respondToRequest(threadId, requestId, decision)),
     respondToUserInput: (threadId, requestId, answers) =>
       run(adapter.respondToUserInput(threadId, requestId, answers)),
-    sendTurn: (input) => run(adapter.sendTurn(input)),
+    sendTurn: (input) =>
+      run(
+        adapter.sendTurn(
+          withRuntimeModelSelection(input, sessionModelSelections.get(input.threadId)),
+        ),
+      ),
     async startSession(input) {
-      const { mcp, model, runtimeMode, ...sessionInput } = input;
+      const { mcp, model, modelOptions, runtimeMode, ...sessionInput } = input;
       if (mcp) {
         McpProviderSession.setMcpProviderSession({
           authorizationHeader: mcp.authorizationHeader,
@@ -178,17 +187,20 @@ export async function createProviderRuntime(
           threadId: sessionInput.threadId,
         });
       }
+      const modelSelection = createRuntimeModelSelection(identity.instanceId, model, modelOptions);
       try {
         const session = await run(
           adapter.startSession({
             ...sessionInput,
-            modelSelection: model ? { instanceId: identity.instanceId, model } : undefined,
+            modelSelection,
             provider: identity.driverKind,
             providerInstanceId: identity.instanceId,
             runtimeMode: runtimeMode ?? "full-access",
           }),
         );
         sessionIds.add(sessionInput.threadId);
+        if (modelSelection) sessionModelSelections.set(sessionInput.threadId, modelSelection);
+        else sessionModelSelections.delete(sessionInput.threadId);
         return session;
       } catch (error) {
         McpProviderSession.clearMcpProviderSession(sessionInput.threadId);
@@ -201,6 +213,7 @@ export async function createProviderRuntime(
       } finally {
         McpProviderSession.clearMcpProviderSession(threadId);
         sessionIds.delete(threadId);
+        sessionModelSelections.delete(threadId);
       }
     },
   };
