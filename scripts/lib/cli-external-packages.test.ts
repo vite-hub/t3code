@@ -69,25 +69,32 @@ describe("shouldBundleCliDependency", () => {
 });
 
 describe("selectCliRuntimeExternalDependencies", () => {
-  it("keeps only runtime-external dependency roots for the Windows sidecar", () => {
+  it("keeps desktop runtime dependency roots for the Windows sidecar", () => {
     assert.deepStrictEqual(
       selectCliRuntimeExternalDependencies({
+        "@anthropic-ai/claude-agent-sdk": "3.0.0",
         "@effect/platform-bun": "1.0.0",
         "@ff-labs/fff-node": "2.0.0",
         effect: "3.0.0",
         "node-pty": "4.0.0",
       }),
       {
+        "@anthropic-ai/claude-agent-sdk": "3.0.0",
         "@ff-labs/fff-node": "2.0.0",
         "node-pty": "4.0.0",
       },
     );
   });
 
-  it("selects every external root declared by the server", () => {
+  it("selects every staged runtime root declared by the server", () => {
     assert.deepStrictEqual(
       Object.keys(selectCliRuntimeExternalDependencies(serverPackageJson.dependencies)).sort(),
-      ["@ff-labs/fff-node", "msgpackr-extract", "node-pty"],
+      [
+        "@anthropic-ai/claude-agent-sdk",
+        "@ff-labs/fff-node",
+        "msgpackr-extract",
+        "node-pty",
+      ],
     );
   });
 });
