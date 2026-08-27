@@ -1827,6 +1827,10 @@ export const makeCodexAdapter = Effect.fn("makeCodexAdapter")(function* (
       input.modelSelection?.instanceId === boundInstanceId
         ? getModelSelectionStringOptionValue(input.modelSelection, "reasoningEffort")
         : undefined;
+    const reasoningSummary =
+      input.modelSelection?.instanceId === boundInstanceId
+        ? getModelSelectionStringOptionValue(input.modelSelection, "reasoningSummary")
+        : undefined;
     const serviceTier =
       input.modelSelection?.instanceId === boundInstanceId
         ? getCodexServiceTierOptionValue(input.modelSelection)
@@ -1840,6 +1844,11 @@ export const makeCodexAdapter = Effect.fn("makeCodexAdapter")(function* (
         ...(reasoningEffort
           ? {
               effort: reasoningEffort as EffectCodexSchema.V2TurnStartParams__ReasoningEffort,
+            }
+          : {}),
+        ...(reasoningSummary
+          ? {
+              summary: reasoningSummary as EffectCodexSchema.V2TurnStartParams__ReasoningSummary,
             }
           : {}),
         ...(serviceTier ? { serviceTier } : {}),
