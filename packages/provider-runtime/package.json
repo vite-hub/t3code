@@ -27,7 +27,7 @@
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "^0.3.170",
     "@effect/platform-node": "catalog:",
-    "@t3tools/contracts": "https://pkg.pr.new/vite-hub/t3code/@t3tools/contracts@4934f87487ab50a956c4abc030063ebc1b0ba8d6",
+    "@t3tools/contracts": "workspace:*",
     "effect": "catalog:"
   },
   "devDependencies": {
