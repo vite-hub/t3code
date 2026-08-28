@@ -63,6 +63,12 @@ export const CLI_BUILD_ONLY_EXTERNAL_PREFIXES = [
   "@effect/sql-sqlite-bun",
 ] as const;
 
+// Computed imports do not reach the bundler's package hooks, but desktop
+// artifacts still need their package roots in the staged production install.
+const CLI_RUNTIME_STAGE_ONLY_DEPENDENCIES = [
+  "@anthropic-ai/claude-agent-sdk",
+] as const;
+
 export const CLI_EXTERNAL_PACKAGE_PREFIXES = [
   ...CLI_RUNTIME_EXTERNAL_PREFIXES,
   ...CLI_BUILD_ONLY_EXTERNAL_PREFIXES,
@@ -92,12 +98,16 @@ export function shouldBundleCliDependency(id: string): boolean {
   return !isExternalCliDependency(id);
 }
 
-/** Select direct dependency roots whose runtime closure belongs in the sidecar. */
+/** Select direct dependency roots whose runtime closure belongs in desktop artifacts. */
 export function selectCliRuntimeExternalDependencies(
   dependencies: Readonly<Record<string, string>>,
 ): Record<string, string> {
   return Object.fromEntries(
-    Object.entries(dependencies).filter(([name]) => isRuntimeExternalCliDependency(name)),
+    Object.entries(dependencies).filter(
+      ([name]) =>
+        isRuntimeExternalCliDependency(name) ||
+        CLI_RUNTIME_STAGE_ONLY_DEPENDENCIES.some((dependency) => dependency === name),
+    ),
   );
 }
 

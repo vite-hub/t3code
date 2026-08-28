@@ -23,6 +23,7 @@ import {
 } from "@t3tools/contracts";
 import { createModelSelection } from "@t3tools/shared/model";
 import { assert, describe, it } from "@effect/vitest";
+import { vi } from "vite-plus/test";
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as Fiber from "effect/Fiber";
@@ -39,6 +40,35 @@ import { ProviderAdapterProcessError, ProviderAdapterValidationError } from "../
 import type { ClaudeAdapterShape } from "../Services/ClaudeAdapter.ts";
 import { makeClaudeAdapter, type ClaudeAdapterLiveOptions } from "./ClaudeAdapter.ts";
 const decodeClaudeSettings = Schema.decodeSync(ClaudeSettings);
+
+const lazyClaudeSdk = vi.hoisted(() => {
+  let markImportStarted!: () => void;
+  let markImportFinished!: () => void;
+  let releaseImport!: () => void;
+  const query = vi.fn();
+  const waitForRelease = new Promise<void>((resolve) => {
+    releaseImport = resolve;
+  });
+  return {
+    importFinished: new Promise<void>((resolve) => {
+      markImportFinished = resolve;
+    }),
+    importStarted: new Promise<void>((resolve) => {
+      markImportStarted = resolve;
+    }),
+    load: async () => {
+      markImportStarted();
+      await waitForRelease;
+      markImportFinished();
+      return { query };
+    },
+    markImportFinished: () => markImportFinished(),
+    markImportStarted: () => markImportStarted(),
+    query,
+    releaseImport: () => releaseImport(),
+    waitForRelease,
+  };
+});
 
 // Test-local service tag so the rest of the file can keep using `yield* ClaudeAdapter`.
 class ClaudeAdapter extends Context.Service<ClaudeAdapter, ClaudeAdapterShape>()(
@@ -1711,6 +1741,41 @@ describe("ClaudeAdapterLive", () => {
     }).pipe(
       Effect.provideService(Random.Random, makeDeterministicRandomService()),
       Effect.provide(harness.layer),
+    );
+  });
+
+  it.effect("does not start a Claude runtime after lazy loading is interrupted", () => {
+    const layer = Layer.effect(
+      ClaudeAdapter,
+      Effect.gen(function* () {
+        const claudeConfig = decodeClaudeSettings({});
+        return yield* makeClaudeAdapter(claudeConfig, { loadSdk: lazyClaudeSdk.load });
+      }),
+    ).pipe(
+      Layer.provideMerge(ServerConfig.layerTest("/tmp/claude-adapter-test", "/tmp")),
+      Layer.provideMerge(ServerSettingsService.layerTest()),
+      Layer.provideMerge(NodeServices.layer),
+    );
+
+    return Effect.gen(function* () {
+      const adapter = yield* ClaudeAdapter;
+      const startFiber = yield* Effect.forkChild(
+        adapter.startSession({
+          threadId: THREAD_ID,
+          provider: ProviderDriverKind.make("claudeAgent"),
+          runtimeMode: "full-access",
+        }),
+      );
+
+      yield* Effect.promise(() => lazyClaudeSdk.importStarted);
+      yield* Fiber.interrupt(startFiber);
+      lazyClaudeSdk.releaseImport();
+      yield* Effect.promise(() => lazyClaudeSdk.importFinished);
+
+      assert.equal(lazyClaudeSdk.query.mock.calls.length, 0);
+    }).pipe(
+      Effect.provideService(Random.Random, makeDeterministicRandomService()),
+      Effect.provide(layer),
     );
   });
 

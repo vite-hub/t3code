@@ -6,19 +6,18 @@
  *
  * @module ClaudeAdapterLive
  */
-import {
-  type CanUseTool,
-  query,
-  type Options as ClaudeQueryOptions,
-  type PermissionMode,
-  type PermissionResult,
-  type PermissionUpdate,
-  type SDKMessage,
-  type SDKControlGetContextUsageResponse,
-  type SDKResultMessage,
-  type SettingSource,
-  type SDKUserMessage,
-  type ModelUsage,
+import type {
+  CanUseTool,
+  Options as ClaudeQueryOptions,
+  PermissionMode,
+  PermissionResult,
+  PermissionUpdate,
+  SDKMessage,
+  SDKControlGetContextUsageResponse,
+  SDKResultMessage,
+  SettingSource,
+  SDKUserMessage,
+  ModelUsage,
 } from "@anthropic-ai/claude-agent-sdk";
 import { parseCliArgs } from "@t3tools/shared/cliArgs";
 import {
@@ -81,6 +80,7 @@ import { ServerConfig } from "../../config.ts";
 import * as McpProviderSession from "../../mcp/McpProviderSession.ts";
 import { resolveClaudeSdkExecutablePath } from "../Drivers/ClaudeExecutable.ts";
 import { makeClaudeEnvironment } from "../Drivers/ClaudeHome.ts";
+import { importClaudeAgentSdk } from "../Drivers/ClaudeSdk.ts";
 import {
   getClaudeModelCapabilities,
   isClaudeUltracodeEffort,
@@ -332,6 +332,7 @@ export interface ClaudeAdapterLiveOptions {
     readonly prompt: AsyncIterable<SDKUserMessage>;
     readonly options: ClaudeQueryOptions;
   }) => ClaudeQueryRuntime;
+  readonly loadSdk?: () => Promise<Pick<typeof import("@anthropic-ai/claude-agent-sdk"), "query">>;
   readonly nativeEventLogPath?: string;
   readonly nativeEventLogger?: EventNdjsonLogger;
 }
@@ -1716,16 +1717,8 @@ export const makeClaudeAdapter = Effect.fn("makeClaudeAdapter")(function* (
   const managedNativeEventLogger =
     options?.nativeEventLogger === undefined ? nativeEventLogger : undefined;
 
-  const createQuery =
-    options?.createQuery ??
-    ((input: {
-      readonly prompt: AsyncIterable<SDKUserMessage>;
-      readonly options: ClaudeQueryOptions;
-    }) =>
-      query({
-        prompt: input.prompt,
-        options: input.options,
-      }) as ClaudeQueryRuntime);
+  const createQuery = options?.createQuery;
+  const loadSdk = options?.loadSdk ?? importClaudeAgentSdk;
 
   const sessions = new Map<ThreadId, ClaudeSessionContext>();
   const runtimeEventQueue = yield* Queue.unbounded<ProviderRuntimeEvent>();
@@ -4371,12 +4364,31 @@ export const makeClaudeAdapter = Effect.fn("makeClaudeAdapter")(function* (
         "claude.query.path_to_executable": claudeBinaryPath,
       });
 
-      const queryRuntime = yield* Effect.try({
-        try: () =>
-          createQuery({
+      const queryRuntime = yield* Effect.tryPromise({
+        try: async (signal) => {
+          const query = createQuery ?? (await loadSdk()).query;
+          signal.throwIfAborted();
+          const runtime = query({
             prompt,
             options: queryOptions,
-          }),
+          }) as ClaudeQueryRuntime;
+          let closed = false;
+          const close = () => {
+            if (closed) return;
+            closed = true;
+            try {
+              runtime.close();
+            } catch {
+              // Interruption remains authoritative when late runtime cleanup fails.
+            }
+          };
+          signal.addEventListener("abort", close, { once: true });
+          if (signal.aborted) {
+            close();
+            signal.throwIfAborted();
+          }
+          return runtime;
+        },
         catch: (cause) =>
           new ProviderAdapterProcessError({
             provider: PROVIDER,
