@@ -101,6 +101,7 @@ describe("buildTurnStartParams", () => {
         prompt: "Make a plan",
         model: "gpt-5.3-codex",
         effort: "medium",
+        summary: "detailed",
         interactionMode: "plan",
       }),
     );
@@ -120,6 +121,7 @@ describe("buildTurnStartParams", () => {
       ],
       model: "gpt-5.3-codex",
       effort: "medium",
+      summary: "detailed",
       collaborationMode: {
         mode: "plan",
         settings: {
