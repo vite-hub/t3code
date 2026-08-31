@@ -36,6 +36,7 @@ import { makeClaudeAdapter } from "../../../apps/server/src/provider/Layers/Clau
 import { makeCodexAdapter } from "../../../apps/server/src/provider/Layers/CodexAdapter.ts";
 import type { ProviderAdapterShape } from "../../../apps/server/src/provider/Services/ProviderAdapter.ts";
 import { createRuntimeModelSelection, withRuntimeModelSelection } from "./model-options.ts";
+import type { ProviderRuntimeSessionStore } from "./session-store.ts";
 
 export type ProviderRuntimeKind = "claude-code" | "codex";
 
@@ -58,6 +59,7 @@ export interface CreateProviderRuntimeOptions {
   readonly cwd?: string;
   readonly environment?: NodeJS.ProcessEnv;
   readonly provider: ProviderRuntimeKind;
+  readonly sessionStore?: ProviderRuntimeSessionStore;
   readonly stateDirectory?: string;
   readonly settings?: Record<string, unknown>;
 }
@@ -189,15 +191,37 @@ export async function createProviderRuntime(
       }
       const modelSelection = createRuntimeModelSelection(identity.instanceId, model, modelOptions);
       try {
+        const persistedResumeCursor =
+          sessionInput.resumeCursor === undefined
+            ? await options.sessionStore?.get(sessionInput.threadId)
+            : undefined;
         const session = await run(
           adapter.startSession({
             ...sessionInput,
+            ...(persistedResumeCursor === undefined
+              ? {}
+              : { resumeCursor: persistedResumeCursor }),
             modelSelection,
             provider: identity.driverKind,
             providerInstanceId: identity.instanceId,
             runtimeMode: runtimeMode ?? "full-access",
           }),
         );
+        if (session.resumeCursor !== undefined) {
+          try {
+            await options.sessionStore?.set(session.threadId, session.resumeCursor);
+          } catch (error) {
+            try {
+              await run(adapter.stopSession(session.threadId));
+            } catch (stopError) {
+              throw new AggregateError(
+                [error, stopError],
+                "T3 provider session cursor persistence and cleanup failed.",
+              );
+            }
+            throw error;
+          }
+        }
         sessionIds.add(sessionInput.threadId);
         if (modelSelection) sessionModelSelections.set(sessionInput.threadId, modelSelection);
         else sessionModelSelections.delete(sessionInput.threadId);
@@ -230,3 +254,8 @@ export type {
   ThreadId,
   TurnId,
 } from "@t3tools/contracts";
+export {
+  createSqliteProviderRuntimeSessionStore,
+  type ProviderRuntimeSessionStore,
+  type SqliteProviderRuntimeSessionStore,
+} from "./session-store.ts";
