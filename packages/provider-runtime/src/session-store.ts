@@ -1,4 +1,4 @@
-// @effect-diagnostics nodeBuiltinImport:off - This package exposes a Promise-based Node host boundary.
+// @effect-diagnostics nodeBuiltinImport:off globalDate:off - This package exposes a Promise-based Node host boundary.
 import * as NodeFSP from "node:fs/promises";
 import * as NodePath from "node:path";
 import { DatabaseSync } from "node:sqlite";
@@ -74,7 +74,8 @@ export async function createSqliteProviderRuntimeSessionStore(
     async set(threadId, resumeCursor) {
       assertOpen();
       const value = JSON.stringify(resumeCursor);
-      if (value === undefined) throw new TypeError("Provider resume cursor must be JSON serializable.");
+      if (value === undefined)
+        throw new TypeError("Provider resume cursor must be JSON serializable.");
       setSession.run(threadId, value, Date.now());
     },
   };
