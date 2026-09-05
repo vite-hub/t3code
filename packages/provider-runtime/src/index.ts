@@ -38,6 +38,12 @@ import type { ProviderAdapterShape } from "../../../apps/server/src/provider/Ser
 import { createRuntimeModelSelection, withRuntimeModelSelection } from "./model-options.ts";
 import type { ProviderRuntimeSessionStore } from "./session-store.ts";
 
+export {
+  inspectProvider,
+  type InspectProviderOptions,
+  type ProviderInspection,
+} from "./inspect.ts";
+
 export type ProviderRuntimeKind = "claude-code" | "codex";
 
 export interface ProviderRuntimeMcpServer {
@@ -198,9 +204,7 @@ export async function createProviderRuntime(
         const session = await run(
           adapter.startSession({
             ...sessionInput,
-            ...(persistedResumeCursor === undefined
-              ? {}
-              : { resumeCursor: persistedResumeCursor }),
+            ...(persistedResumeCursor === undefined ? {} : { resumeCursor: persistedResumeCursor }),
             modelSelection,
             provider: identity.driverKind,
             providerInstanceId: identity.instanceId,
