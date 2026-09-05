@@ -2,7 +2,7 @@ name: Sync upstream
 
 on:
   schedule:
-    - cron: "17 4 * * 1"
+    - cron: "17 4 * * *"
   workflow_dispatch:
     inputs:
       publish_packages:
@@ -48,7 +48,7 @@ jobs:
 
           # Workflows are fork-owned. GITHUB_TOKEN cannot push upstream workflow
           # changes, and the fork has different release and package operations.
-          if ! git merge --no-commit upstream/main; then
+          if ! git merge --no-commit --no-ff upstream/main; then
             conflicts=$(git diff --name-only --diff-filter=U -- . \
               ':(exclude).github/workflows/**')
             if [[ -n "$conflicts" ]]; then
@@ -58,7 +58,6 @@ jobs:
           fi
           git restore --source=HEAD --staged --worktree -- .github/workflows
           git commit --no-edit
-          git push origin HEAD:main
           echo "changed=true" >> "$GITHUB_OUTPUT"
 
           if [[ -s "$RUNNER_TEMP/upstream-workflows.txt" ]]; then
@@ -71,6 +70,24 @@ jobs:
               echo '```'
             } >> "$GITHUB_STEP_SUMMARY"
           fi
+
+      - uses: voidzero-dev/setup-vp@v1
+        if: steps.sync.outputs.changed == 'true' || inputs.publish_packages
+        with:
+          node-version-file: package.json
+          cache: true
+          run-install: true
+
+      - name: Verify embedded providers before advancing main
+        if: steps.sync.outputs.changed == 'true' || inputs.publish_packages
+        run: |
+          vp run --filter @t3tools/contracts --filter @t3tools/provider-runtime build
+          vp run --filter @t3tools/provider-runtime typecheck
+          vp test run packages/provider-runtime/src apps/server/src/provider/Layers/ClaudeAdapter.lazy.test.ts apps/server/src/provider/Layers/ClaudeAdapter.test.ts apps/server/src/provider/Layers/CodexAdapter.test.ts apps/server/src/provider/Layers/ProviderRegistry.test.ts apps/server/src/provider/Layers/codexUsageLimits.test.ts apps/server/src/provider/Layers/claudeUsageLimits.test.ts --maxWorkers=2
+
+      - name: Advance verified fork
+        if: steps.sync.outputs.changed == 'true'
+        run: git push origin HEAD:main
 
       - name: Publish updated packages
         if: steps.sync.outputs.changed == 'true' || inputs.publish_packages
