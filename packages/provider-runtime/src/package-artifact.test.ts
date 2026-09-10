@@ -95,9 +95,6 @@ describe("provider-runtime package artifact", () => {
         const effectManifest = await readManifest(
           NodePath.join(packageDirectory, "node_modules/effect/package.json"),
         );
-        const platformNodeManifest = await readManifest(
-          NodePath.join(packageDirectory, "node_modules/@effect/platform-node/package.json"),
-        );
         expect(providerRuntimeManifest.dependencies).not.toHaveProperty(
           "@anthropic-ai/claude-agent-sdk",
         );
@@ -115,7 +112,6 @@ describe("provider-runtime package artifact", () => {
             NodePath.join(providerRuntimePackageDirectory, "package.json"),
             JSON.stringify(
               publishedManifest(providerRuntimeManifest, {
-                "@effect/platform-node": platformNodeManifest.version,
                 "@t3tools/contracts": contractsManifest.version,
                 effect: effectManifest.version,
               }),
@@ -151,7 +147,14 @@ describe("provider-runtime package artifact", () => {
 
         await run(
           "pnpm",
-          ["install", "--prefer-offline", "--ignore-scripts", "--config.ignore-workspace=true"],
+          [
+            "install",
+            "--prefer-offline",
+            "--ignore-scripts",
+            "--config.ignore-workspace=true",
+            "--strict-peer-dependencies",
+            "--config.minimumReleaseAge=0",
+          ],
           consumerDirectory,
         );
         await expect(

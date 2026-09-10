@@ -5,7 +5,13 @@ export default defineConfig({
     entry: ["src/index.ts"],
     outDir: "dist",
     deps: {
-      alwaysBundle: [/^@t3tools\/shared(?:\/|$)/, /^effect-codex-app-server(?:\/|$)/],
+      // Publish the Node adapters built against our locked Effect version. Their
+      // transitive prerelease ranges can otherwise install incompatible adapters.
+      alwaysBundle: [
+        /^@effect\/platform-node(?:-shared)?(?:\/|$)/,
+        /^@t3tools\/shared(?:\/|$)/,
+        /^effect-codex-app-server(?:\/|$)/,
+      ],
       onlyBundle: false,
     },
   },
