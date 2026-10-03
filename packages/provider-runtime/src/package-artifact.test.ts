@@ -48,7 +48,7 @@ function publishedManifest(
 
 describe("provider-runtime package artifact", () => {
   it(
-    "installs and starts a Codex-only consumer without the Claude SDK",
+    "starts a Codex-only consumer with ESM Node builtins and no Claude SDK",
     { timeout: 120_000 },
     async () => {
       const temporaryDirectory = await NodeFSP.mkdtemp(
@@ -139,7 +139,14 @@ describe("provider-runtime package artifact", () => {
         await NodeFSP.writeFile(
           NodePath.join(consumerDirectory, "verify.mjs"),
           [
-            'import { createProviderRuntime } from "@t3tools/provider-runtime";',
+            'import { registerHooks } from "node:module";',
+            "registerHooks({ resolve(specifier, context, nextResolve) {",
+            '  if (context.conditions.includes("require") && /^(node:)?(process|buffer)$/.test(specifier)) {',
+            '    throw new Error(`No such module "${specifier}"`);',
+            "  }",
+            "  return nextResolve(specifier, context);",
+            "} });",
+            'const { createProviderRuntime } = await import("@t3tools/provider-runtime");',
             'const runtime = await createProviderRuntime({ provider: "codex" });',
             "await runtime.close();",
           ].join("\n"),
