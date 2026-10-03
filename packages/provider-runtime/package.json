@@ -32,7 +32,6 @@
     "@anthropic-ai/claude-agent-sdk": "^0.3.276",
     "@effect/platform-node": "catalog:",
     "@effect/vitest": "catalog:",
-    "@t3tools/shared": "workspace:*",
     "@types/node": "catalog:",
     "vite-plus": "catalog:"
   },

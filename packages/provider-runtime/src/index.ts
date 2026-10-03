@@ -27,7 +27,6 @@ import {
   type ThreadId,
   type TurnId,
 } from "@t3tools/contracts";
-import { HostProcessEnvironment } from "@t3tools/shared/hostProcess";
 import * as DateTime from "effect/DateTime";
 import * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
@@ -51,6 +50,8 @@ import type {
 } from "../../../apps/server/src/orchestration-v2/ProviderAdapter.ts";
 import type { ProviderAdapterDriverCreateError } from "../../../apps/server/src/orchestration-v2/ProviderAdapterDriver.ts";
 import * as ProviderEventLoggers from "../../../apps/server/src/provider/Layers/ProviderEventLoggers.ts";
+// pnpm pack cannot resolve a workspace dependency on the private shared package.
+import { HostProcessEnvironment } from "../../shared/src/hostProcess.ts";
 import { createLegacyRun, LegacyEventTranslator, type LegacyRun } from "./legacy-events.ts";
 import { createRuntimeModelSelection, withRuntimeModelSelection } from "./model-options.ts";
 import type { ProviderRuntimeSessionStore } from "./session-store.ts";
