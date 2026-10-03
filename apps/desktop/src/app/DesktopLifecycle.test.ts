@@ -43,7 +43,6 @@ function makeElectronAppLayer(
     setAboutPanelOptions: () => Effect.void,
     setAppUserModelId: () => Effect.void,
     getAppMetrics: Effect.succeed([]),
-    isDefaultProtocolClient: () => Effect.succeed(false),
     setAsDefaultProtocolClient: () => Effect.succeed(true),
     setDesktopName: () => Effect.void,
     setDockIcon: () => Effect.void,
@@ -69,6 +68,7 @@ function makeElectronWindowLayer(destroyAll: Effect.Effect<void> = Effect.void) 
     focusedMainOrFirst: Effect.die("unexpected focused window read"),
     setMain: () => Effect.void,
     clearMain: () => Effect.void,
+    prepareReveal: () => Effect.succeed(false),
     reveal: () => Effect.void,
     sendAll: () => Effect.void,
     destroyAll,
@@ -92,15 +92,18 @@ function makeDesktopWindowLayer(
     handleBackendReady: () => Effect.void,
     handleBackendNotReady: Effect.void,
     flushMainWindowBounds: input.flushMainWindowBounds ?? Effect.void,
+    prepareCaptureReveal: Effect.void,
     dispatchMenuAction: () => Effect.void,
+    dispatchSnapShotEvent: () => Effect.void,
     zoomMain: () => Effect.void,
     syncAppearance: Effect.void,
   });
 }
 
 describe("DesktopLifecycle", () => {
-  for (const platform of ["darwin", "win32", "linux"] satisfies ReadonlyArray<NodeJS.Platform>) {
-    it.effect(`lets the updater's quit event proceed on ${platform}`, () => {
+  it.effect.each(["darwin", "win32", "linux"] satisfies ReadonlyArray<NodeJS.Platform>)(
+    "lets the updater's quit event proceed on %s",
+    (platform) => {
       const appListeners = new Map<string, (...args: readonly unknown[]) => void>();
       let windowsDestroyed = false;
       const environmentLayer = Layer.succeed(DesktopEnvironment.DesktopEnvironment, {
@@ -150,8 +153,8 @@ describe("DesktopLifecycle", () => {
           assert.isTrue(yield* Ref.get(state.quitting));
         }),
       ).pipe(Effect.provide(layer));
-    });
-  }
+    },
+  );
 
   it.effect("destroys windows before waiting for backend shutdown", () =>
     Effect.gen(function* () {

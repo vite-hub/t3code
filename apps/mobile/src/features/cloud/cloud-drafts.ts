@@ -7,7 +7,7 @@ import * as SubscriptionRef from "effect/SubscriptionRef";
 import { connectionAtomRuntime } from "../../connection/runtime";
 import { archiveCloudComposerDrafts } from "../../state/use-composer-drafts";
 
-export class CloudDraftArchiveError extends Schema.TaggedErrorClass<CloudDraftArchiveError>()(
+export class CloudDraftArchiveError extends Schema.TaggedError<CloudDraftArchiveError>()(
   "CloudDraftArchiveError",
   {
     environmentCount: Schema.Number,
@@ -23,7 +23,7 @@ export class CloudDraftArchiveError extends Schema.TaggedErrorClass<CloudDraftAr
 export const removeCloudEnvironments = createRuntimeCommand(connectionAtomRuntime, {
   label: "cloud:preserve-drafts-and-remove-environments",
   execute: Effect.fn("removeCloudEnvironments")(function* (accountId: string | null) {
-    const registry = yield* EnvironmentRegistry;
+    const registry = yield* EnvironmentRegistry.EnvironmentRegistry;
     const entries = yield* SubscriptionRef.get(registry.entries);
     const environmentIds = new Set(
       [...entries.values()]

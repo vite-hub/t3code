@@ -8,7 +8,6 @@ import * as TestClock from "effect/testing/TestClock";
 import { describe, expect, it, vi } from "vite-plus/test";
 
 import {
-  extractPathFromShellOutput,
   CommandAvailability,
   CommandResolutionCache,
   type CommandAvailabilityChecker,
@@ -26,6 +25,7 @@ import {
   resolveWindowsEnvironment,
   SpawnExecutableResolution,
   WindowsShellEnvironment,
+  withPathDirectoryListings,
   type WindowsShellEnvironmentReader,
 } from "./shell.ts";
 
@@ -38,28 +38,6 @@ const withWindowsEnvironmentMocks = <A, E, R>(
     Effect.provideService(WindowsShellEnvironment, readEnvironment),
     Effect.provideService(CommandAvailability, commandAvailable),
   );
-
-describe("extractPathFromShellOutput", () => {
-  it("extracts the path between capture markers", () => {
-    expect(
-      extractPathFromShellOutput(
-        "__T3CODE_PATH_START__\n/opt/homebrew/bin:/usr/bin\n__T3CODE_PATH_END__\n",
-      ),
-    ).toBe("/opt/homebrew/bin:/usr/bin");
-  });
-
-  it("ignores shell startup noise around the capture markers", () => {
-    expect(
-      extractPathFromShellOutput(
-        "Welcome to fish\n__T3CODE_PATH_START__\n/opt/homebrew/bin:/usr/bin\n__T3CODE_PATH_END__\nBye\n",
-      ),
-    ).toBe("/opt/homebrew/bin:/usr/bin");
-  });
-
-  it("returns null when the markers are missing", () => {
-    expect(extractPathFromShellOutput("/opt/homebrew/bin /usr/bin")).toBeNull();
-  });
-});
 
 describe("readPathFromLoginShell", () => {
   it("uses a shell-agnostic printenv PATH probe", () => {
@@ -495,6 +473,40 @@ effectIt.layer(NodeServices.layer)("resolveCommandPath", (it) => {
       expect(probed.filter((filePath) => /\.(COM|EXE|BAT|CMD)$/.test(filePath))).toHaveLength(4);
       expect(probed.filter((filePath) => /\.(com|exe|bat|cmd)$/.test(filePath))).toHaveLength(4);
     }),
+  );
+
+  it.effect("probes only listed PATH names and relists a directory that changes", () =>
+    Effect.gen(function* () {
+      const fs = yield* FileSystem.FileSystem;
+      const path = yield* Path.Path;
+      const first = yield* fs.makeTempDirectoryScoped();
+      const second = yield* fs.makeTempDirectoryScoped();
+      yield* fs.writeFileString(path.join(first, "cursor.CMD"), "");
+      yield* fs.writeFileString(path.join(second, "cursor.EXE"), "");
+      const env = { PATH: `${first};${second}`, PATHEXT: ".EXE;.CMD" };
+      const probed: Array<string> = [];
+      yield* Effect.gen(function* () {
+        expect(yield* resolveCommandPath("cursor", { env })).toBe(path.join(first, "cursor.CMD"));
+        expect(yield* isCommandAvailable("absent", { env })).toBe(false);
+        yield* fs.writeFileString(path.join(second, "late.EXE"), "");
+        yield* fs.utimes(second, 4_102_444_800, 4_102_444_800); // seconds: 2100-01-01
+        expect(yield* resolveCommandPath("late", { env })).toBe(path.join(second, "late.EXE"));
+      }).pipe(
+        withPathDirectoryListings,
+        Effect.provideService(FileSystem.FileSystem, {
+          ...fs,
+          stat: (file) => {
+            // Record candidate probes, not the per-lookup directory mtime checks.
+            if (file !== first && file !== second) probed.push(file);
+            return fs.stat(file);
+          },
+        }),
+      );
+      expect(probed).toEqual([path.join(first, "cursor.CMD"), path.join(second, "late.EXE")]);
+    }).pipe(
+      Effect.provideService(HostProcessPlatform, "win32"),
+      Effect.provideService(CommandResolutionCache, new Map()),
+    ),
   );
 });
 

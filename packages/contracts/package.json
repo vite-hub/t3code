@@ -1,6 +1,6 @@
 {
   "name": "@t3tools/contracts",
-  "version": "0.0.38",
+  "version": "0.0.45",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -27,8 +27,8 @@
   },
   "scripts": {
     "build": "vp pack",
-    "typecheck": "tsgo --noEmit",
-    "test": "vp test run"
+    "typecheck": "tsc --noEmit",
+    "test": "vp test run --config ../../vite.config.ts --dir ."
   },
   "devDependencies": {
     "@effect/vitest": "catalog:",

@@ -1,6 +1,10 @@
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { assert, describe, it } from "@effect/vitest";
-import { ClientSettingsSchema, type ClientSettings } from "@t3tools/contracts";
+import {
+  ClientSettingsSchema,
+  DEFAULT_CLIENT_SETTINGS,
+  type ClientSettings,
+} from "@t3tools/contracts";
 import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
 import * as Layer from "effect/Layer";
@@ -13,6 +17,9 @@ import * as DesktopEnvironment from "../app/DesktopEnvironment.ts";
 import * as DesktopClientSettings from "./DesktopClientSettings.ts";
 
 const clientSettings: ClientSettings = {
+  ...DEFAULT_CLIENT_SETTINGS,
+  notificationMode: "notifications-and-sound",
+  inAppNotificationsEnabled: true,
   appearanceContrast: 100,
   browserDefaultViewport: { _tag: "preset", width: 1024, height: 600, presetId: "nest-hub" },
   browserDefaultZoomFactor: 1.25,
@@ -27,9 +34,9 @@ const clientSettings: ClientSettings = {
   confirmThreadDelete: false,
   confirmThreadUnpin: false,
   contextWindowMeterEnabled: false,
-  composerCollapseOnBlur: false,
   composerCollapseOnScroll: true,
   dismissedProviderUpdateNotificationKeys: [],
+  diffFilesCollapsed: true,
   diffIgnoreWhitespace: true,
   diffLayout: "stacked",
   environmentIdentificationMode: "artwork",
@@ -44,10 +51,12 @@ const clientSettings: ClientSettings = {
   fontSizeTerminal: 12,
   fontSmoothing: true,
   glassOpacity: 80,
+  onboardingCompletedAt: null,
   panelAnimationDurationMs: 0,
   planModeEnabled: false,
   proactivePanelsEnabled: true,
   showSkillsInSlashMenu: false,
+  persistComposerContextStrip: true,
   providerModelPreferences: {},
   sidebarProjectGroupingMode: "repository_path",
   sidebarProjectGroupingOverrides: {
@@ -57,6 +66,10 @@ const clientSettings: ClientSettings = {
   sidebarThreadSortOrder: "created_at",
   sidebarThreadPreviewCount: 6,
   legacySidebarEnabled: false,
+  sidebarWorkingShelfEnabled: false,
+  loadBalancingEnabled: false,
+  loadBalancingWeights: { "environment-1": 75, "environment-2": 0 },
+  pullRequestMergeMethodOverrides: {},
   timestampFormat: "24-hour",
   wordWrap: true,
 };
@@ -132,6 +145,57 @@ describe("DesktopClientSettings", () => {
             "settings",
           ),
         );
+      }),
+    ),
+  );
+
+  it.effect.each([
+    { label: "permission", reason: "PermissionDenied" },
+    { label: "I/O", reason: "Unknown" },
+  ] as const)("preserves saved preferences across $label read failures and retries", (failure) =>
+    withClientSettings(
+      Effect.gen(function* () {
+        const environment = yield* DesktopEnvironment.DesktopEnvironment;
+        const fileSystem = yield* FileSystem.FileSystem;
+        const settings = yield* DesktopClientSettings.DesktopClientSettings;
+        const savedSettings = {
+          ...clientSettings,
+          onboardingCompletedAt: "2026-09-05T12:00:00.000Z",
+        };
+        yield* settings.set(savedSettings);
+        const savedContents = yield* fileSystem.readFileString(environment.clientSettingsPath);
+        const cause = PlatformError.systemError({
+          _tag: failure.reason,
+          module: "FileSystem",
+          method: "readFileString",
+          pathOrDescriptor: environment.clientSettingsPath,
+        });
+        let failRead = true;
+        const retryableSettings = yield* DesktopClientSettings.make.pipe(
+          Effect.provideService(
+            FileSystem.FileSystem,
+            FileSystem.FileSystem.of({
+              ...fileSystem,
+              readFileString: (path) =>
+                Effect.suspend(() =>
+                  failRead ? Effect.fail(cause) : fileSystem.readFileString(path),
+                ),
+            }),
+          ),
+        );
+
+        const error = yield* retryableSettings.get.pipe(Effect.flip);
+        assert.instanceOf(error, DesktopClientSettings.DesktopClientSettingsReadError);
+        assert.equal(error.operation, "read-file");
+        assert.equal(error.path, environment.clientSettingsPath);
+        assert.strictEqual(error.cause, cause);
+        assert.equal(
+          yield* fileSystem.readFileString(environment.clientSettingsPath),
+          savedContents,
+        );
+
+        failRead = false;
+        assert.deepEqual(yield* retryableSettings.get, Option.some(savedSettings));
       }),
     ),
   );
@@ -222,16 +286,28 @@ describe("DesktopClientSettings", () => {
     ),
   );
 
-  it.effect("treats malformed client settings documents as absent", () =>
+  it.effect.each([
+    { label: "malformed JSON", contents: "{not-json" },
+    { label: "invalid direct settings", contents: '{"fontSizeCode":"large"}' },
+    { label: "invalid legacy settings", contents: '{"settings":{"fontSizeCode":"large"}}' },
+  ])("reports $label without treating the settings file as absent", (document) =>
     withClientSettings(
       Effect.gen(function* () {
         const environment = yield* DesktopEnvironment.DesktopEnvironment;
         const fileSystem = yield* FileSystem.FileSystem;
         const settings = yield* DesktopClientSettings.DesktopClientSettings;
         yield* fileSystem.makeDirectory(environment.stateDir, { recursive: true });
-        yield* fileSystem.writeFileString(environment.clientSettingsPath, "{not-json");
+        yield* fileSystem.writeFileString(environment.clientSettingsPath, document.contents);
 
-        assert.isTrue(Option.isNone(yield* settings.get));
+        const error = yield* settings.get.pipe(Effect.flip);
+        assert.instanceOf(error, DesktopClientSettings.DesktopClientSettingsReadError);
+        assert.equal(error.operation, "decode-document");
+        assert.equal(error.path, environment.clientSettingsPath);
+        assert.instanceOf(error.cause, Schema.SchemaError);
+        assert.equal(
+          yield* fileSystem.readFileString(environment.clientSettingsPath),
+          document.contents,
+        );
       }),
     ),
   );

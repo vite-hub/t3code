@@ -14,8 +14,10 @@ const POSITION_ONLY_PATTERN = /^\d+(?::\d+)?$/;
 const INLINE_CODE_DISQUALIFIER_PATTERN = /[\s`]/;
 const PATH_SEPARATOR_PATTERN = /[\\/]/;
 const FILE_EXTENSION_PATTERN = /\.[A-Za-z0-9_-]+$/;
+// A final dot between digits marks a version or model id (`glm-5.3`,
+// `Qwen2.5-Coder`), not an extension. `ls.1` and `libfoo.so.1` stay files.
+const VERSION_SUFFIX_PATTERN = /\d\.\d[^.]*$/;
 const NUMERIC_DOTTED_PATTERN = /^\d+(?:\.\d+)+$/;
-const BARE_EXTENSIONLESS_POSITION_PATTERN = /^[A-Za-z0-9_-]+(?::\d+){1,2}$/;
 // Standard OS and dev-container roots; deliberately excludes app-route-ish
 // prefixes like /app/ or /chat/ so SPA routes never read as files.
 const POSIX_FILE_ROOT_PREFIXES = [
@@ -152,14 +154,6 @@ function looksLikeHostname(segment: string, hasPosition: boolean): boolean {
   return !hasPosition && COUNTRY_HOSTNAME_TLDS.has(lastLabel);
 }
 
-/** Recognizes conventional extensionless filenames with an explicit line position. */
-export function isConventionalFilePosition(path: string): boolean {
-  return (
-    BARE_EXTENSIONLESS_POSITION_PATTERN.test(path) &&
-    EXTENSIONLESS_FILE_NAMES.has(path.replace(POSITION_SUFFIX_PATTERN, ""))
-  );
-}
-
 /**
  * Picks path-shaped inline code for the client's markdown file-link resolver.
  * It does not resolve paths or turn plain prose and fenced code into links.
@@ -185,6 +179,7 @@ export function inlineCodeFilePathCandidate(codeText: string): string | null {
         .replace(/[/\\]+$/, "")
         .split(/[\\/]/)
         .at(-1) ?? "";
+    if (VERSION_SUFFIX_PATTERN.test(basename)) return null;
     if (!hasPosition && !FILE_EXTENSION_PATTERN.test(basename)) return null;
   }
   return candidate;
@@ -345,6 +340,7 @@ export function workspaceRelativeFilePath(
   const caseInsensitive = isWindowsAbsolutePath(stripSlashPrefixedWindowsDrive(workspaceRoot));
   const pathForCompare = caseInsensitive ? normalizedPath.toLowerCase() : normalizedPath;
   const rootForCompare = caseInsensitive ? normalizedRoot.toLowerCase() : normalizedRoot;
+  if (pathForCompare.replace(/\/+$/, "") === rootForCompare) return ".";
   if (!pathForCompare.startsWith(`${rootForCompare}/`)) return null;
   return normalizedPath.slice(normalizedRoot.length + 1);
 }

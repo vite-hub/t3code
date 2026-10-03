@@ -1,6 +1,7 @@
 "use client";
 
 import { RegistryContext, useAtomSet, useAtomValue } from "@effect/atom-react";
+import { parseScopedThreadKey } from "@t3tools/client-runtime/environment";
 import { squashAtomCommandFailure } from "@t3tools/client-runtime/state/runtime";
 import {
   FILL_PREVIEW_VIEWPORT,
@@ -22,26 +23,38 @@ import {
 import { resolvePreviewViewport } from "@t3tools/shared/previewViewport";
 import { useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { Atom } from "effect/unstable/reactivity";
+import { useShallow } from "zustand/react/shallow";
 
 import {
   applyPreviewServerSnapshot,
   readThreadPreviewState,
   reconcilePreviewServerSessions,
   updatePreviewServerSnapshot,
+  useActivePreviewSessions,
 } from "~/previewStateStore";
-import { selectThreadPreviewMiniPlayer, usePreviewMiniPlayerStore } from "~/previewMiniPlayerStore";
+import {
+  browserMiniPlayerSource,
+  selectThreadPreviewMiniPlayerTabId,
+  usePreviewMiniPlayerStore,
+} from "~/previewMiniPlayerStore";
 import { resolveBrowserNavigationTarget } from "~/browser/browserTargetResolver";
 import {
   readActiveBrowserRecordingTargets,
   startBrowserRecording,
   stopBrowserRecording,
+  stopBrowserRecordingForUpload,
 } from "~/browser/browserRecording";
 import { resolveBrowserRecordingStopTarget } from "~/browser/browserRecordingScope";
+import { uploadBrowserRecording } from "~/browser/browserRecordingUpload";
 import {
   acquireBrowserSurfaceActivity,
   useBrowserSurfaceStore,
 } from "~/browser/browserSurfaceStore";
-import { browserDefaultOpenViewport, resolveBrowserDefaults } from "~/browser/browserDefaults";
+import {
+  browserDefaultOpenProfileId,
+  browserDefaultOpenViewport,
+  resolveBrowserDefaults,
+} from "~/browser/browserDefaults";
 import { runBrowserViewportMutation } from "~/browser/browserViewportActions";
 import { previewRuntimeTabId } from "~/browser/previewRuntimeTabId";
 import { isElectron } from "~/env";
@@ -77,6 +90,7 @@ import {
   resolvePreviewAutomationTarget,
 } from "./previewAutomationTarget";
 import { resolveHostWaitBudgetMs, waitForHostReadiness } from "./previewAutomationHostBudget";
+import { runPreviewClickKeepingHostFocus } from "./previewClickFocus";
 import { isPreviewViewportReady } from "./previewViewportReadiness";
 import { shouldRollbackPreviewViewport } from "./previewViewportRollback";
 
@@ -240,7 +254,7 @@ const currentStatus = async (
   }
   const navStatus = snapshot?.navStatus;
   return {
-    available: Boolean(previewBridge?.automation),
+    available: false,
     visible,
     tabId,
     url: navStatus && navStatus._tag !== "Idle" ? navStatus.url : null,
@@ -282,6 +296,30 @@ export function PreviewAutomationHosts() {
 
 function PreviewAutomationHost(props: { readonly environmentId: EnvironmentId }) {
   const { environmentId } = props;
+  const previewSessions = useActivePreviewSessions();
+  const visibleRuntimeTabIds = useBrowserSurfaceStore(
+    useShallow((state) =>
+      Object.keys(state.byTabId).filter((tabId) => state.byTabId[tabId]?.visible),
+    ),
+  );
+  const liveTabs = useMemo(
+    () =>
+      Object.entries(previewSessions).flatMap(([key, state]) => {
+        const ref = parseScopedThreadKey(key);
+        if (ref?.environmentId !== environmentId) return [];
+        return Object.values(state.sessions)
+          .filter((tab) => state.desktopByTabId[tab.tabId]?.hasWebContents)
+          .map((tab) => ({
+            threadId: ref.threadId,
+            tabId: tab.tabId,
+            visible: visibleRuntimeTabIds.includes(
+              previewRuntimeTabId(ref, state.serverEpoch, tab.tabId),
+            ),
+          }));
+      }),
+    [environmentId, previewSessions, visibleRuntimeTabIds],
+  );
+  const lastFocusReportRef = useRef<string | null>(null);
   const registry = useContext(RegistryContext);
   const [automationClientId] = useState(createPreviewAutomationClientId);
   const initialAutomationHost = useMemo<PreviewAutomationHostState>(
@@ -372,7 +410,9 @@ function PreviewAutomationHost(props: { readonly environmentId: EnvironmentId })
                     ?.has(runtimeTabId) ?? false,
               })
             ) {
-              usePreviewMiniPlayerStore.getState().open(threadRef, readyTabId);
+              usePreviewMiniPlayerStore
+                .getState()
+                .open(threadRef, browserMiniPlayerSource(readyTabId));
             }
           }
           browserActivity.release ??= acquireBrowserSurfaceActivity(runtimeTabId);
@@ -412,6 +452,7 @@ function PreviewAutomationHost(props: { readonly environmentId: EnvironmentId })
             const reusedExistingTab = activeTabId !== null;
             tabId = activeTabId;
             if (!activeTabId) {
+              const defaults = await resolveBrowserDefaults();
               const result = await open({
                 environmentId,
                 input: {
@@ -419,7 +460,8 @@ function PreviewAutomationHost(props: { readonly environmentId: EnvironmentId })
                   ...(resolvedInputUrl ? { url: resolvedInputUrl } : {}),
                   // An agent that didn't state a size gets the user's
                   // configured default, same as a hand-opened tab.
-                  viewport: browserDefaultOpenViewport(await resolveBrowserDefaults()),
+                  viewport: browserDefaultOpenViewport(defaults),
+                  profileId: browserDefaultOpenProfileId(defaults),
                 },
               });
               if (result._tag === "Failure") {
@@ -485,11 +527,11 @@ function PreviewAutomationHost(props: { readonly environmentId: EnvironmentId })
                   new Set([activeRuntimeTabId]),
                 );
               }
-              const miniPlayer = selectThreadPreviewMiniPlayer(
+              const miniPlayerTabId = selectThreadPreviewMiniPlayerTabId(
                 usePreviewMiniPlayerStore.getState().byThreadKey,
                 threadRef,
               );
-              if (miniPlayer?.tabId === activeTabId) {
+              if (miniPlayerTabId === activeTabId) {
                 usePreviewMiniPlayerStore.getState().close(threadRef);
               }
             } else if (shouldPresentPreview) {
@@ -499,7 +541,9 @@ function PreviewAutomationHost(props: { readonly environmentId: EnvironmentId })
               }
             }
             if (shouldPresentPreview) {
-              usePreviewMiniPlayerStore.getState().open(threadRef, activeTabId);
+              usePreviewMiniPlayerStore
+                .getState()
+                .open(threadRef, browserMiniPlayerSource(activeTabId));
             }
             if (activeSnapshot && previewAutomationOpenNeedsOverlay(input, activeSnapshot)) {
               await requireReadyTab();
@@ -643,9 +687,11 @@ function PreviewAutomationHost(props: { readonly environmentId: EnvironmentId })
           }
           case "click": {
             const ready = await requireReadyTab();
-            return await ready.bridge.automation.click(
-              ready.runtimeTabId,
-              request.input as Parameters<typeof ready.bridge.automation.click>[1],
+            return await runPreviewClickKeepingHostFocus(ready.runtimeTabId, () =>
+              ready.bridge.automation.click(
+                ready.runtimeTabId,
+                request.input as Parameters<typeof ready.bridge.automation.click>[1],
+              ),
             );
           }
           case "type": {
@@ -710,7 +756,18 @@ function PreviewAutomationHost(props: { readonly environmentId: EnvironmentId })
             const stopRuntimeTabId =
               activeRecordings.find((recording) => recording.serverTabId === stopTabId)
                 ?.runtimeTabId ?? null;
-            const artifact = stopRuntimeTabId ? await stopBrowserRecording(stopRuntimeTabId) : null;
+            const transferToEnvironment =
+              typeof request.input === "object" &&
+              request.input !== null &&
+              "transferToEnvironment" in request.input &&
+              request.input.transferToEnvironment === true;
+            const artifact = stopRuntimeTabId
+              ? transferToEnvironment
+                ? await stopBrowserRecordingForUpload(stopRuntimeTabId, (saved, blob) =>
+                    uploadBrowserRecording(threadRef, saved, blob, hostDeadlineMs),
+                  )
+                : await stopBrowserRecording(stopRuntimeTabId)
+              : null;
             if (!artifact || !stopTabId) {
               return raisePreviewAutomationHostError(
                 new PreviewAutomationRecordingNotActiveError({
@@ -721,7 +778,10 @@ function PreviewAutomationHost(props: { readonly environmentId: EnvironmentId })
                 }),
               );
             }
-            return { ...artifact, tabId: stopTabId };
+            return {
+              ...artifact,
+              tabId: stopTabId,
+            };
           }
         }
       } catch (cause) {
@@ -774,24 +834,35 @@ function PreviewAutomationHost(props: { readonly environmentId: EnvironmentId })
   useEffect(() => {
     const report = () => {
       if (!automationConnectionId) return;
-      void focusAutomationHost({
+      const input = {
+        clientId: automationClientId,
         environmentId,
-        input: {
-          clientId: automationClientId,
-          environmentId,
-          connectionId: automationConnectionId,
-          focused: document.hasFocus(),
-        },
+        connectionId: automationConnectionId,
+        focused: document.hasFocus() && document.visibilityState === "visible",
+        liveTabs: liveTabs.map((tab) => ({
+          ...tab,
+          visible: tab.visible && document.visibilityState === "visible",
+        })),
+      };
+      const reportKey = JSON.stringify(input);
+      if (lastFocusReportRef.current === reportKey) return;
+      lastFocusReportRef.current = reportKey;
+      void focusAutomationHost({ environmentId, input }).then((result) => {
+        if (result._tag === "Failure" && lastFocusReportRef.current === reportKey) {
+          lastFocusReportRef.current = null;
+        }
       });
     };
     report();
     window.addEventListener("focus", report);
     window.addEventListener("blur", report);
+    document.addEventListener("visibilitychange", report);
     return () => {
       window.removeEventListener("focus", report);
       window.removeEventListener("blur", report);
+      document.removeEventListener("visibilitychange", report);
     };
-  }, [automationClientId, automationConnectionId, environmentId, focusAutomationHost]);
+  }, [automationClientId, automationConnectionId, environmentId, focusAutomationHost, liveTabs]);
 
   return null;
 }
