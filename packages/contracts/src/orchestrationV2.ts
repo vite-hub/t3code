@@ -3233,7 +3233,50 @@ export class OrchestrationGetWorkflowScriptError extends Schema.TaggedError<Orch
   }
 }
 
-export const OrchestrationV2RpcSchemas = {
+// The fork publishes declaration files; the inferred type of this object exceeds
+// the TypeScript serialization limit (TS7056), so it is spelled out here.
+export const OrchestrationV2RpcSchemas: {
+  readonly dispatchCommand: {
+    readonly input: typeof OrchestrationV2Command;
+    readonly output: typeof OrchestrationV2DispatchCommandResult;
+  };
+  readonly getTurnDiff: {
+    readonly input: typeof OrchestrationGetTurnDiffInput;
+    readonly output: typeof OrchestrationGetTurnDiffResult;
+  };
+  readonly getFullThreadDiff: {
+    readonly input: typeof OrchestrationGetFullThreadDiffInput;
+    readonly output: typeof OrchestrationGetFullThreadDiffResult;
+  };
+  readonly getArchivedShellSnapshot: {
+    readonly input: Schema.Struct<{}>;
+    readonly output: typeof OrchestrationV2ArchivedShellSnapshot;
+  };
+  readonly getThreadProjection: {
+    readonly input: typeof OrchestrationV2GetThreadProjectionInput;
+    readonly output: typeof OrchestrationV2ThreadProjection;
+  };
+  readonly getWorkflowScript: {
+    readonly input: typeof OrchestrationV2GetWorkflowScriptInput;
+    readonly output: typeof OrchestrationV2GetWorkflowScriptResult;
+  };
+  readonly launchThread: {
+    readonly input: typeof OrchestrationV2ThreadLaunchInput;
+    readonly output: typeof OrchestrationV2ThreadLaunchResult;
+  };
+  readonly subscribeArchivedShell: {
+    readonly input: Schema.Struct<{}>;
+    readonly output: typeof OrchestrationV2ArchivedShellStreamItem;
+  };
+  readonly subscribeShell: {
+    readonly input: typeof OrchestrationV2SubscribeShellInput;
+    readonly output: typeof OrchestrationV2ShellStreamItem;
+  };
+  readonly subscribeThread: {
+    readonly input: typeof OrchestrationV2SubscribeThreadInput;
+    readonly output: typeof OrchestrationV2ThreadStreamItem;
+  };
+} = {
   dispatchCommand: {
     input: OrchestrationV2Command,
     output: OrchestrationV2DispatchCommandResult,

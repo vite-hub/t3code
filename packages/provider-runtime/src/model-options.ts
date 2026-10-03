@@ -2,10 +2,9 @@ import type { ModelSelection, ProviderInstanceId, ProviderSendTurnInput } from "
 
 export function createRuntimeModelSelection(
   instanceId: ProviderInstanceId,
-  model: string | undefined,
+  model: string,
   modelOptions: Readonly<Record<string, string | boolean>> | undefined,
-): ModelSelection | undefined {
-  if (!model) return undefined;
+): ModelSelection {
   const options = modelOptions
     ? Object.entries(modelOptions).map(([id, value]) => ({ id, value }))
     : [];

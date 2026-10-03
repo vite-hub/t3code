@@ -83,7 +83,7 @@ jobs:
         run: |
           vp run --filter @t3tools/contracts --filter @t3tools/provider-runtime build
           vp run --filter @t3tools/provider-runtime typecheck
-          vp test run packages/provider-runtime/src apps/server/src/provider/Layers/ClaudeAdapter.lazy.test.ts apps/server/src/provider/Layers/ClaudeAdapter.test.ts apps/server/src/provider/Layers/CodexAdapter.test.ts apps/server/src/provider/Layers/ProviderRegistry.test.ts apps/server/src/provider/Layers/codexUsageLimits.test.ts apps/server/src/provider/Layers/claudeUsageLimits.test.ts --maxWorkers=2
+          vp test run packages/provider-runtime/src apps/server/src/orchestration-v2/Adapters/ClaudeAdapterV2.lazy.test.ts apps/server/src/provider/Layers/ProviderRegistry.test.ts apps/server/src/provider/Layers/codexUsageLimits.test.ts apps/server/src/provider/Layers/claudeUsageLimits.test.ts scripts/lib/cli-external-packages.test.ts --maxWorkers=2
 
       - name: Advance verified fork
         if: steps.sync.outputs.changed == 'true'

@@ -123,7 +123,7 @@ export interface CodexExecutable {
   readonly version: string;
   readonly managedVersionDirectory: string | null;
 }
-interface CodexInstallationService {
+export interface CodexInstallationService {
   readonly managedDirectory: string;
   readonly resolve: () => Effect.Effect<CodexExecutable, CodexInstallationError>;
   readonly acquire: () => Effect.Effect<CodexExecutable, CodexInstallationError, Scope.Scope>;

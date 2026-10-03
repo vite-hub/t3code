@@ -27,7 +27,7 @@ export interface CodexAppServerClientOptions {
   ) => Effect.Effect<void, never>;
 }
 
-interface CodexAppServerClientRaw {
+export interface CodexAppServerClientRaw {
   readonly notifications: CodexProtocol.CodexAppServerPatchedProtocol["incomingNotifications"];
   readonly requests: CodexProtocol.CodexAppServerPatchedProtocol["incomingRequests"];
   readonly request: CodexProtocol.CodexAppServerPatchedProtocol["request"];

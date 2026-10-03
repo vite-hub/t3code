@@ -1,7 +1,7 @@
 // @effect-diagnostics nodeBuiltinImport:off globalDate:off - This package exposes a Promise-based Node host boundary.
 import * as NodeFSP from "node:fs/promises";
 import * as NodePath from "node:path";
-import { DatabaseSync } from "node:sqlite";
+import * as NodeSqlite from "node:sqlite";
 
 import type { ThreadId } from "@t3tools/contracts";
 
@@ -21,7 +21,7 @@ export async function createSqliteProviderRuntimeSessionStore(
   if (!path.trim()) throw new TypeError("Provider session store path must not be empty.");
   await NodeFSP.mkdir(NodePath.dirname(NodePath.resolve(path)), { mode: 0o700, recursive: true });
 
-  const database = new DatabaseSync(path);
+  const database = new NodeSqlite.DatabaseSync(path);
   database.exec(`
     PRAGMA busy_timeout = 5000;
     PRAGMA journal_mode = WAL;

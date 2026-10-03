@@ -8,25 +8,23 @@ import {
 } from "@t3tools/shared/toolActivity";
 import { isWorkspaceImagePreviewPath } from "@t3tools/shared/filePreview";
 import { normalizeClaudeTurnTokenUsage } from "../../provider/ClaudeTurnTokenUsage.ts";
-import {
-  type CanUseTool,
-  forkSession as forkClaudeSession,
-  type ForkSessionOptions,
-  type ForkSessionResult,
-  getSubagentMessages,
-  query,
-  type Options as ClaudeQueryOptions,
-  type PermissionMode,
-  type PermissionResult,
-  type PermissionUpdate,
-  type Query as ClaudeQuery,
-  type Settings as ClaudeSdkSettings,
-  type SDKAssistantMessage,
-  type SDKAPIRetryMessage,
-  type SDKMessage,
-  type SDKRateLimitInfo,
-  type SDKResultMessage,
-  type SDKUserMessage,
+import { importClaudeAgentSdk } from "../../provider/Drivers/ClaudeSdk.ts";
+import type {
+  CanUseTool,
+  ForkSessionOptions,
+  ForkSessionResult,
+  Options as ClaudeQueryOptions,
+  PermissionMode,
+  PermissionResult,
+  PermissionUpdate,
+  Query as ClaudeQuery,
+  Settings as ClaudeSdkSettings,
+  SDKAssistantMessage,
+  SDKAPIRetryMessage,
+  SDKMessage,
+  SDKRateLimitInfo,
+  SDKResultMessage,
+  SDKUserMessage,
 } from "@anthropic-ai/claude-agent-sdk";
 import type {
   AskUserQuestionInput,
@@ -611,6 +609,11 @@ export const claudeAgentSdkQueryRunnerLiveLayer: Layer.Layer<
           ),
           Stream.toAsyncIterable,
         );
+        // The SDK loads on first use so Claude stays opt-in for embedded hosts.
+        const { query } = yield* Effect.tryPromise({
+          try: () => importClaudeAgentSdk(),
+          catch: (cause) => queryRunnerError(cause, "query"),
+        });
         const queryRuntime = yield* Effect.try({
           try: () =>
             query({
@@ -718,7 +721,8 @@ export const claudeAgentSdkQueryRunnerLiveLayer: Layer.Layer<
           },
         });
         const result = yield* Effect.tryPromise({
-          try: () => forkClaudeSession(input.sessionId, input.options),
+          try: async () =>
+            (await importClaudeAgentSdk()).forkSession(input.sessionId, input.options),
           catch: (cause) => queryRunnerError(cause, "forkSession"),
         });
         yield* logProtocolEvent({
@@ -752,8 +756,8 @@ export const claudeAgentSdkQueryRunnerLiveLayer: Layer.Layer<
           // The CLI stamps every message of a subagent's transcript with the
           // tool call that launched it; one message is enough.
           const messages = yield* Effect.tryPromise({
-            try: () =>
-              getSubagentMessages(input.sessionId, input.agentId, {
+            try: async () =>
+              (await importClaudeAgentSdk()).getSubagentMessages(input.sessionId, input.agentId, {
                 ...(input.dir === null ? {} : { dir: input.dir }),
                 limit: 1,
               }),
