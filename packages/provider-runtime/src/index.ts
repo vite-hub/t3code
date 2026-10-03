@@ -201,7 +201,9 @@ interface EmbeddedSession {
   readonly modelSelection: ModelSelection;
   readonly createdAt: string;
   providerThread: OrchestrationV2ProviderThread;
+  /** Run ordinal on the provider thread; continues from a resumed thread's last run. */
   turnOrdinal: number;
+  messageOrdinal: number;
   updatedAt: string;
 }
 
@@ -428,7 +430,7 @@ export async function createProviderRuntime(
         const messageId = await run(
           idAllocator.allocate.message({
             threadId: session.threadId,
-            ordinal: ++session.turnOrdinal,
+            ordinal: ++session.messageOrdinal,
           }),
         );
         await run(
@@ -463,7 +465,10 @@ export async function createProviderRuntime(
         ordinal,
       });
       const messageId = await run(
-        idAllocator.allocate.message({ threadId: session.threadId, ordinal }),
+        idAllocator.allocate.message({
+          threadId: session.threadId,
+          ordinal: ++session.messageOrdinal,
+        }),
       );
       session.translator.registerRun(legacyRun);
       try {
@@ -492,6 +497,15 @@ export async function createProviderRuntime(
         session.translator.abandonRun(legacyRun);
         throw error;
       }
+      // Hosts persist the cursor returned here. Record the run on the thread now so
+      // a later resume knows native history exists; the adapter's own thread update
+      // replaces these values when the turn settles.
+      session.providerThread = {
+        ...session.providerThread,
+        firstRunOrdinal: session.providerThread.firstRunOrdinal ?? ordinal,
+        lastRunOrdinal: ordinal,
+        status: "active",
+      };
       session.updatedAt = new Date().toISOString();
       return {
         threadId: session.threadId,
@@ -591,7 +605,8 @@ export async function createProviderRuntime(
           modelSelection,
           createdAt: now,
           providerThread,
-          turnOrdinal: 0,
+          turnOrdinal: providerThread.lastRunOrdinal ?? 0,
+          messageOrdinal: 0,
           updatedAt: now,
         };
         const pump = Stream.runForEach(sessionRuntime.events, (event) =>
