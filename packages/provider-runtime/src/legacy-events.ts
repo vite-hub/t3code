@@ -571,6 +571,13 @@ export class LegacyEventTranslator {
           title: nonEmpty(item.title),
           data: { kind: item.type },
         });
+      case "secret_request":
+        return this.#translateLifecycleItem(item, refs, {
+          itemType: "unknown",
+          title: item.label,
+          detail: nonEmpty(item.reason),
+          data: { kind: item.type, secretStatus: item.secretStatus },
+        });
     }
   }
 

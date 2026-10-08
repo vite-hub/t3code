@@ -232,8 +232,8 @@ export async function createProviderRuntime(
   // Both factories only read services at construction; no provider process starts here.
   const runtime = ManagedRuntime.make(
     Layer.mergeAll(
-      ClaudeAdapterV2.claudeAgentSdkQueryRunnerLiveLayer,
-      CodexAdapterV2.codexAppServerClientFactoryFromSettingsLayer,
+      ClaudeAdapterV2.layerQueryRunner,
+      CodexAdapterV2.layerAppServerClientFactory,
     ).pipe(Layer.provideMerge(infrastructure)),
   );
 

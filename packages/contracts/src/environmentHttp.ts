@@ -603,38 +603,50 @@ const EnvironmentOrchestrationThreadHistoryErrors = [
   EnvironmentInternalError,
 ] as const;
 
-const environmentShellSnapshotEndpoint =
-HttpApiEndpoint.get("shellSnapshot", "/api/orchestration/shell", {
-      headers: OrchestrationProtocolHeaders,
-      success: OrchestrationV2ShellSnapshot,
-      error: EnvironmentOrchestrationSnapshotErrors,
-    }).middleware(EnvironmentAuthenticatedAuth);
+const environmentShellSnapshotEndpoint = HttpApiEndpoint.get(
+  "shellSnapshot",
+  "/api/orchestration/shell",
+  {
+    headers: OrchestrationProtocolHeaders,
+    success: OrchestrationV2ShellSnapshot,
+    error: EnvironmentOrchestrationSnapshotErrors,
+  },
+).middleware(EnvironmentAuthenticatedAuth);
 
-const environmentThreadSnapshotEndpoint =
-HttpApiEndpoint.get("threadSnapshot", "/api/orchestration/threads/:threadId", {
-      headers: OrchestrationProtocolHeaders,
-      params: EnvironmentOrchestrationThreadSnapshotParams,
-      success: OrchestrationV2ThreadDetailSnapshot,
-      error: EnvironmentOrchestrationThreadSnapshotErrors,
-    }).middleware(EnvironmentAuthenticatedAuth);
+const environmentThreadSnapshotEndpoint = HttpApiEndpoint.get(
+  "threadSnapshot",
+  "/api/orchestration/threads/:threadId",
+  {
+    headers: OrchestrationProtocolHeaders,
+    params: EnvironmentOrchestrationThreadSnapshotParams,
+    success: OrchestrationV2ThreadDetailSnapshot,
+    error: EnvironmentOrchestrationThreadSnapshotErrors,
+  },
+).middleware(EnvironmentAuthenticatedAuth);
 
-const environmentThreadBoundedSnapshotEndpoint =
-HttpApiEndpoint.get("threadBoundedSnapshot", "/api/orchestration/threads/:threadId/bounded", {
-      headers: OrchestrationProtocolHeaders,
-      params: EnvironmentOrchestrationThreadSnapshotParams,
-      query: EnvironmentOrchestrationThreadBoundedSnapshotQuery,
-      success: OrchestrationV2ThreadBoundedSnapshot,
-      error: EnvironmentOrchestrationThreadSnapshotErrors,
-    }).middleware(EnvironmentAuthenticatedAuth);
+const environmentThreadBoundedSnapshotEndpoint = HttpApiEndpoint.get(
+  "threadBoundedSnapshot",
+  "/api/orchestration/threads/:threadId/bounded",
+  {
+    headers: OrchestrationProtocolHeaders,
+    params: EnvironmentOrchestrationThreadSnapshotParams,
+    query: EnvironmentOrchestrationThreadBoundedSnapshotQuery,
+    success: OrchestrationV2ThreadBoundedSnapshot,
+    error: EnvironmentOrchestrationThreadSnapshotErrors,
+  },
+).middleware(EnvironmentAuthenticatedAuth);
 
-const environmentThreadHistoryPageEndpoint =
-HttpApiEndpoint.get("threadHistoryPage", "/api/orchestration/threads/:threadId/history", {
-      headers: OrchestrationProtocolHeaders,
-      params: EnvironmentOrchestrationThreadSnapshotParams,
-      query: EnvironmentOrchestrationThreadHistoryQuery,
-      success: OrchestrationV2ThreadHistoryPage,
-      error: EnvironmentOrchestrationThreadHistoryErrors,
-    }).middleware(EnvironmentAuthenticatedAuth);
+const environmentThreadHistoryPageEndpoint = HttpApiEndpoint.get(
+  "threadHistoryPage",
+  "/api/orchestration/threads/:threadId/history",
+  {
+    headers: OrchestrationProtocolHeaders,
+    params: EnvironmentOrchestrationThreadSnapshotParams,
+    query: EnvironmentOrchestrationThreadHistoryQuery,
+    success: OrchestrationV2ThreadHistoryPage,
+    error: EnvironmentOrchestrationThreadHistoryErrors,
+  },
+).middleware(EnvironmentAuthenticatedAuth);
 
 // Name the endpoints so the published group declaration stays within compiler limits.
 type EnvironmentOrchestrationEndpoint =
@@ -643,13 +655,15 @@ type EnvironmentOrchestrationEndpoint =
   | typeof environmentThreadBoundedSnapshotEndpoint
   | typeof environmentThreadHistoryPageEndpoint;
 
-const environmentOrchestrationGroup: HttpApiGroup.HttpApiGroup<"orchestration", EnvironmentOrchestrationEndpoint> =
-  HttpApiGroup.make("orchestration").add(
-    environmentShellSnapshotEndpoint,
-    environmentThreadSnapshotEndpoint,
-    environmentThreadBoundedSnapshotEndpoint,
-    environmentThreadHistoryPageEndpoint,
-  );
+const environmentOrchestrationGroup: HttpApiGroup.HttpApiGroup<
+  "orchestration",
+  EnvironmentOrchestrationEndpoint
+> = HttpApiGroup.make("orchestration").add(
+  environmentShellSnapshotEndpoint,
+  environmentThreadSnapshotEndpoint,
+  environmentThreadBoundedSnapshotEndpoint,
+  environmentThreadHistoryPageEndpoint,
+);
 
 class EnvironmentOrchestrationHttpApi extends environmentOrchestrationGroup {}
 

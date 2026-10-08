@@ -92,6 +92,30 @@ function turnItem(item: OrchestrationV2TurnItem): ProviderAdapterV2Event {
 }
 
 describe("LegacyEventTranslator", () => {
+  it("retains secret request metadata without inventing a legacy approval request", () => {
+    const { translator } = makeTranslator();
+    const events = translator.translate(
+      turnItem({
+        ...itemBase,
+        id: TurnItemId.make("turn-item:secret"),
+        type: "secret_request",
+        status: "completed",
+        label: "Service token",
+        reason: "Connect the service",
+        secretStatus: "saved",
+      }),
+    );
+    expect(events.map((event) => event.type)).toEqual(["item.started", "item.completed"]);
+    expect(events[1]).toMatchObject({
+      payload: {
+        itemType: "unknown",
+        title: "Service token",
+        detail: "Connect the service",
+        data: { kind: "secret_request", secretStatus: "saved" },
+      },
+    });
+  });
+
   it("maps provider turns to turn.started, token usage, and turn.completed", () => {
     const { translator, run } = makeTranslator();
     const started = translator.translate(providerTurn("running"));
