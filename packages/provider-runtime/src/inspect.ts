@@ -7,8 +7,8 @@ import * as Schema from "effect/Schema";
 import {
   checkClaudeProviderStatus,
   probeClaudeCapabilities,
-} from "../../../apps/server/src/provider/Layers/ClaudeProvider.ts";
-import { checkCodexProviderStatus } from "../../../apps/server/src/provider/Layers/CodexProvider.ts";
+} from "../../../apps/server/src/provider/ClaudeProvider.ts";
+import { checkCodexProviderStatus } from "../../../apps/server/src/provider/CodexProvider.ts";
 import type { ProviderRuntimeKind } from "./index.ts";
 
 const decodeCodexSettings = Schema.decodeSync(CodexSettings);

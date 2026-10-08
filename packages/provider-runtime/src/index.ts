@@ -49,7 +49,7 @@ import type {
   ProviderAdapterV2Shape,
 } from "../../../apps/server/src/orchestration-v2/ProviderAdapter.ts";
 import type { ProviderAdapterDriverCreateError } from "../../../apps/server/src/orchestration-v2/ProviderAdapterDriver.ts";
-import * as ProviderEventLoggers from "../../../apps/server/src/provider/Layers/ProviderEventLoggers.ts";
+import * as ProviderEventLoggers from "../../../apps/server/src/provider/ProviderEventLoggers.ts";
 // pnpm pack cannot resolve a workspace dependency on the private shared package.
 import { HostProcessEnvironment } from "../../shared/src/hostProcess.ts";
 import { createLegacyRun, LegacyEventTranslator, type LegacyRun } from "./legacy-events.ts";
