@@ -24,4 +24,4 @@ jobs:
           run-install: true
       - run: vp run --filter @t3tools/contracts --filter @t3tools/provider-runtime build
       - run: vp run --filter @t3tools/provider-runtime typecheck
-      - run: vp test run packages/provider-runtime/src apps/server/src/orchestration-v2/Adapters/ClaudeAdapterV2.lazy.test.ts apps/server/src/provider/ClaudeAdapter.lazy.test.ts apps/server/src/provider/ProviderRegistry.test.ts apps/server/src/provider/codexUsageLimits.test.ts apps/server/src/provider/claudeUsageLimits.test.ts scripts/lib/cli-external-packages.test.ts --maxWorkers=2
+      - run: vp test run packages/provider-runtime/src apps/server/src/orchestration-v2/Adapters/ClaudeAdapterV2.lazy.test.ts apps/server/src/provider/ProviderRegistry.test.ts apps/server/src/provider/codexUsageLimits.test.ts apps/server/src/provider/claudeUsageLimits.test.ts scripts/lib/cli-external-packages.test.ts --maxWorkers=2
