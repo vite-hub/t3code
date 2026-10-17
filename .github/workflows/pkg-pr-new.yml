@@ -23,6 +23,7 @@ jobs:
           node-version-file: package.json
           cache: true
           run-install: true
-      - run: vp run --filter @t3tools/contracts --filter @t3tools/provider-runtime build
-      - run: vp dlx publint './packages/contracts' --pack npm && vp dlx publint './packages/provider-runtime' --pack npm
-      - run: vp dlx pkg-pr-new publish './packages/contracts' './packages/provider-runtime' --pnpm --packageManager=pnpm
+      - run: vp run --filter @t3tools/contracts --filter @vite-hub/provider-runtime build
+      # The runtime bundles the private T3 packages, so it is the only preview package.
+      - run: vp dlx publint './packages/provider-runtime' --pack npm
+      - run: vp dlx pkg-pr-new publish './packages/provider-runtime' --pnpm --packageManager=pnpm
