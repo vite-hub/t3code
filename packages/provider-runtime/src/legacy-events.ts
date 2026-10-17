@@ -25,7 +25,7 @@ import {
   type TurnTokenUsage,
 } from "@t3tools/contracts";
 
-import type { ProviderAdapterV2Event } from "../../../apps/server/src/orchestration-v2/ProviderAdapter.ts";
+import type { ProviderAdapterV2Event } from "../../provider-core/src/server/ProviderAdapter.ts";
 
 /**
  * One embedded turn. The host sees a stable `turnId`; the provider reports its
@@ -267,6 +267,8 @@ export class LegacyEventTranslator {
       case "app_thread.created":
       case "message.updated":
       case "plan.updated":
+      // Live command output is not persisted; the final output arrives with `turn_item.updated`.
+      case "command_output.delta":
         return [];
     }
   }

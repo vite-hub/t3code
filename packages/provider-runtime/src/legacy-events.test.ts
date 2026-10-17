@@ -21,7 +21,7 @@ import {
 import * as DateTime from "effect/DateTime";
 import { describe, expect, it } from "vite-plus/test";
 
-import type { ProviderAdapterV2Event } from "../../../apps/server/src/orchestration-v2/ProviderAdapter.ts";
+import type { ProviderAdapterV2Event } from "../../provider-core/src/server/ProviderAdapter.ts";
 import { createLegacyRun, LegacyEventTranslator } from "./legacy-events.ts";
 
 const driver = ProviderDriverKind.make("codex");

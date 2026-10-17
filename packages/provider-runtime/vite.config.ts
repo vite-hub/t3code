@@ -8,6 +8,7 @@ const sourceTrees = [
   "apps/server/src",
   "packages/contracts/src",
   "packages/effect-codex-app-server/src",
+  "packages/provider-core/src",
   "packages/provider-runtime/src",
   "packages/shared/src",
 ].map((tree) => NodePath.join(repositoryRoot, tree));
@@ -53,6 +54,7 @@ export default defineConfig({
       // transitive prerelease ranges can otherwise install incompatible adapters.
       alwaysBundle: [
         /^@effect\/platform-node(?:-shared)?(?:\/|$)/,
+        /^@t3tools\/provider-core(?:\/|$)/,
         /^@t3tools\/shared(?:\/|$)/,
         /^effect-codex-app-server(?:\/|$)/,
       ],

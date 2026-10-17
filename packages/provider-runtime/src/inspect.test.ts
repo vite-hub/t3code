@@ -5,7 +5,7 @@ import * as NodeOS from "node:os";
 import * as NodePath from "node:path";
 
 import { it } from "@effect/vitest";
-import { HostProcessPlatform } from "../../shared/src/hostProcess.ts";
+import * as HostProcess from "../../shared/src/HostProcess.ts";
 import * as Effect from "effect/Effect";
 import { afterEach, describe, expect, vi } from "vite-plus/test";
 import { inspectProvider } from "./inspect.ts";
@@ -92,7 +92,7 @@ const withPeer = Effect.fn("withPeer")(function* (
   mode: string,
   test: (fixture: Awaited<ReturnType<typeof peer>>) => Promise<void>,
 ) {
-  const platform = yield* HostProcessPlatform;
+  const platform = yield* HostProcess.Platform;
   yield* Effect.promise(async () => test(await peer(mode, platform)));
 });
 

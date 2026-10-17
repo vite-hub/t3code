@@ -39,19 +39,20 @@ import * as Scope from "effect/Scope";
 import * as Stream from "effect/Stream";
 
 import * as ServerConfig from "../../../apps/server/src/config.ts";
-import * as McpProviderSession from "../../../apps/server/src/mcp/McpProviderSession.ts";
 import * as ClaudeAdapterV2 from "../../../apps/server/src/orchestration-v2/Adapters/ClaudeAdapterV2.ts";
 import * as CodexAdapterV2 from "../../../apps/server/src/orchestration-v2/Adapters/CodexAdapterV2.ts";
-import * as IdAllocator from "../../../apps/server/src/orchestration-v2/IdAllocator.ts";
 import type {
+  ProviderAdapterV2,
   ProviderAdapterV2RuntimePolicy,
   ProviderAdapterV2SessionRuntime,
-  ProviderAdapterV2Shape,
-} from "../../../apps/server/src/orchestration-v2/ProviderAdapter.ts";
-import type { ProviderAdapterDriverCreateError } from "../../../apps/server/src/orchestration-v2/ProviderAdapterDriver.ts";
-import * as ProviderEventLoggers from "../../../apps/server/src/provider/ProviderEventLoggers.ts";
+} from "../../provider-core/src/server/ProviderAdapter.ts";
+import type { ProviderAdapterDriverCreateError } from "../../provider-core/src/server/adapterDriver.ts";
+import * as IdAllocator from "../../provider-core/src/server/IdAllocator.ts";
+import * as McpProviderSessions from "../../provider-core/src/server/McpProviderSessions.ts";
+import type { McpProviderSessionConfig } from "../../provider-core/src/server/mcpSession.ts";
+import * as ProviderEventLoggers from "../../provider-core/src/server/ProviderEventLoggers.ts";
 // pnpm pack cannot resolve a workspace dependency on the private shared package.
-import { HostProcessEnvironment } from "../../shared/src/hostProcess.ts";
+import * as HostProcess from "../../shared/src/HostProcess.ts";
 import { createLegacyRun, LegacyEventTranslator, type LegacyRun } from "./legacy-events.ts";
 import { createRuntimeModelSelection, withRuntimeModelSelection } from "./model-options.ts";
 import type { ProviderRuntimeSessionStore } from "./session-store.ts";
@@ -190,6 +191,8 @@ class AsyncEventQueue<T> implements AsyncIterable<T> {
   }
 }
 
+type ProviderAdapterV2Shape = ProviderAdapterV2["Service"];
+
 interface EmbeddedSession {
   readonly threadId: ThreadId;
   readonly providerSessionId: ProviderAdapterV2SessionRuntime["providerSessionId"];
@@ -223,11 +226,12 @@ export async function createProviderRuntime(
     NodeServices.layer,
     ServerConfig.layerTest(cwd, stateDirectory).pipe(Layer.provide(NodeServices.layer)),
     IdAllocator.layer,
+    McpProviderSessions.layer,
     Layer.succeed(
       ProviderEventLoggers.ProviderEventLoggers,
       ProviderEventLoggers.NoOpProviderEventLoggers,
     ),
-    Layer.succeed(HostProcessEnvironment, environment),
+    Layer.succeed(HostProcess.Environment, environment),
   );
   // Both factories only read services at construction; no provider process starts here.
   const runtime = ManagedRuntime.make(
@@ -291,10 +295,24 @@ export async function createProviderRuntime(
     }
     return session;
   };
-  const run = <A, E>(effect: Effect.Effect<A, E, IdAllocator.IdAllocatorV2>): Promise<A> => {
+  const run = <A, E>(
+    effect: Effect.Effect<
+      A,
+      E,
+      IdAllocator.IdAllocatorV2 | McpProviderSessions.McpProviderSessions
+    >,
+  ): Promise<A> => {
     assertOpen();
     return runtime.runPromise(effect);
   };
+  const setMcpSession = (config: McpProviderSessionConfig) =>
+    Effect.flatMap(Effect.service(McpProviderSessions.McpProviderSessions), (mcpSessions) =>
+      mcpSessions.set(config),
+    );
+  const clearMcpSession = (threadId: ThreadId) =>
+    Effect.flatMap(Effect.service(McpProviderSessions.McpProviderSessions), (mcpSessions) =>
+      mcpSessions.clear(threadId),
+    );
   const resumeCursorFor = (session: EmbeddedSession): unknown =>
     encodeResumeCursor({ version: 2, providerThread: session.providerThread });
   const legacySession = (session: EmbeddedSession): ProviderSession => ({
@@ -344,8 +362,11 @@ export async function createProviderRuntime(
   };
   const closeSession = async (session: EmbeddedSession) => {
     sessions.delete(session.threadId);
-    McpProviderSession.clearMcpProviderSession(session.threadId);
-    await runtime.runPromise(Scope.close(session.scope, Exit.succeed(undefined)));
+    await runtime.runPromise(
+      clearMcpSession(session.threadId).pipe(
+        Effect.andThen(Scope.close(session.scope, Exit.succeed(undefined))),
+      ),
+    );
   };
   const providerTurnFor = (legacyRun: LegacyRun) =>
     legacyRun.providerTurnId !== undefined
@@ -537,15 +558,17 @@ export async function createProviderRuntime(
         idAllocator.allocate.providerSession({ providerInstanceId: identity.instanceId, threadId }),
       );
       if (mcp) {
-        McpProviderSession.setMcpProviderSession({
-          authorizationHeader: mcp.authorizationHeader,
-          endpoint: mcp.endpoint,
-          environmentId: EnvironmentId.make("embedded"),
-          providerInstanceId: identity.instanceId,
-          providerSessionId,
-          threadId,
-          browserToolsAvailable: false,
-        });
+        await run(
+          setMcpSession({
+            authorizationHeader: mcp.authorizationHeader,
+            endpoint: mcp.endpoint,
+            environmentId: EnvironmentId.make("embedded"),
+            providerInstanceId: identity.instanceId,
+            providerSessionId,
+            threadId,
+            browserToolsAvailable: false,
+          }),
+        );
       }
       const scope = await runtime.runPromise(Scope.make());
       try {
@@ -641,7 +664,7 @@ export async function createProviderRuntime(
         return legacySession(session);
       } catch (error) {
         sessions.delete(threadId);
-        McpProviderSession.clearMcpProviderSession(threadId);
+        await runtime.runPromise(clearMcpSession(threadId)).catch(() => undefined);
         await runtime
           .runPromise(Scope.close(scope, Exit.succeed(undefined)))
           .catch(() => undefined);
