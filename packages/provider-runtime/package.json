@@ -1,6 +1,6 @@
 {
-  "name": "@vite-hub/provider-runtime",
-  "version": "0.1.0",
+  "name": "@t3tools/provider-runtime",
+  "version": "0.0.33",
   "description": "Embeddable T3 Code provider runtime.",
   "license": "MIT",
   "repository": {
@@ -19,22 +19,19 @@
       "import": "./dist/index.mjs"
     }
   },
-  "publishConfig": {
-    "access": "public"
-  },
   "scripts": {
     "build": "vp pack",
     "typecheck": "tsc --noEmit",
     "test": "vp test run"
   },
   "dependencies": {
+    "@t3tools/contracts": "workspace:*",
     "effect": "catalog:"
   },
   "devDependencies": {
     "@anthropic-ai/claude-agent-sdk": "^0.3.276",
     "@effect/platform-node": "catalog:",
     "@effect/vitest": "catalog:",
-    "@t3tools/contracts": "workspace:*",
     "@types/node": "catalog:",
     "vite-plus": "catalog:"
   },

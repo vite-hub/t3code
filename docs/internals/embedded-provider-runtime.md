@@ -1,15 +1,9 @@
 # Embedded provider runtime
 
-The ViteHub fork publishes `@vite-hub/provider-runtime` to npm for Node hosts
-that use T3's Codex and Claude adapters without running the T3 application server.
+The ViteHub fork publishes `@t3tools/provider-runtime` for Node hosts that use
+T3's Codex and Claude adapters without running the T3 application server.
 `packages/provider-runtime` owns the Promise interface, session cursor storage,
 and package-artifact tests. Provider protocols remain in the upstream adapters.
-
-The package bundles the private T3 workspace packages (`@t3tools/contracts`,
-`@t3tools/provider-core`, `@t3tools/shared`), code and declarations, so its only
-dependency is `effect`. Package managers such as pnpm 12 reject URL dependencies
-below the root, so the published manifest must name registry versions only.
-`src/package-artifact.test.ts` installs the packed tarball to check this.
 
 ## Orchestration V2 adapters
 
@@ -37,7 +31,7 @@ a provider thread, and reports projection-shaped `ProviderAdapterV2Event`s
 ## Inspect an account without a turn
 
 ```ts
-import { inspectProvider } from "@vite-hub/provider-runtime";
+import { inspectProvider } from "@t3tools/provider-runtime";
 
 const status = await inspectProvider({
   provider: "codex",
@@ -66,29 +60,18 @@ identity in `auth` as private operational data.
 The scheduled/manual `Sync upstream` workflow merges upstream, preserves
 fork-owned workflows, installs from the lockfile, builds the published packages,
 typechecks the runtime, and runs focused provider and package-artifact tests.
-It pushes `main` only after those checks pass, then publishes a pkg.pr.new
-preview and dispatches `Release provider runtime`. A conflict or failed check
-leaves remote `main` unchanged.
-
-`Release provider runtime` publishes to npm with provenance through npm trusted
-publishing (trusted workflow: `release-provider-runtime.yml`). Each release is the
-next patch after the latest npm version. Raise `version` in
-`packages/provider-runtime/package.json` to release a minor or major version.
+It pushes `main` only after those checks pass, then publishes preview packages.
+A conflict or failed check leaves remote `main` unchanged.
 
 Keep fork adaptations localized. Current upstream-file changes:
 
 - `ClaudeAdapterV2.ts` and `ClaudeProvider.ts` load `@anthropic-ai/claude-agent-sdk`
   through `Drivers/ClaudeSdk.ts` on first use, so Codex-only hosts do not install
   it. `ClaudeAdapterV2.lazy.test.ts` guards the import graph.
-- `packages/contracts` emits declaration files from `dist` for the runtime bundle.
-  `OrchestrationV2RpcSchemas`, `WsRpcGroup`, and the environment orchestration
-  HTTP group carry explicit type annotations because their inferred types exceed
-  the TypeScript serialization limit (TS7056). Generate them from upstream's
-  member lists after a sync.
-- `CodexInstallation.ts` exports the `CodexInstallationService` interface so the
-  runtime bundle declarations can name it.
-- `ClaudeAdapterV2.ts` must import SDK types with `import type`. With
-  `verbatimModuleSyntax`, `import { type X }` keeps a side-effect import.
+- `packages/contracts` publishes declaration files. `OrchestrationV2RpcSchemas`
+  and `WsRpcGroup` carry explicit type annotations because their inferred types
+  exceed the TypeScript serialization limit (TS7056), and `CodexInstallationService`
+  and `CodexAppServerClientRaw` are exported so the runtime bundle can name them.
 - `scripts/lib/cli-external-packages.ts` stages the Claude SDK in desktop
   artifacts because the computed import hides it from the bundler.
 
@@ -96,5 +79,5 @@ When upstream implements one of these requirements, remove the corresponding
 fork change and retain the package-level behavioral check. Review upstream
 workflow changes from the sync job summary separately.
 
-Consumers depend on a published npm version. Synchronizing this fork
+Consumers pin an immutable verified package revision. Synchronizing this fork
 does not update a consuming application or redeploy its stable environment.

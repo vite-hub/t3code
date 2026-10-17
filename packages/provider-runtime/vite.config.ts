@@ -52,11 +52,8 @@ export default defineConfig({
     deps: {
       // Publish the Node adapters built against our locked Effect version. Their
       // transitive prerelease ranges can otherwise install incompatible adapters.
-      // The T3 workspace packages are private, so their code and types ship inside
-      // the package. A registry install then needs no URL dependency.
       alwaysBundle: [
         /^@effect\/platform-node(?:-shared)?(?:\/|$)/,
-        /^@t3tools\/contracts(?:\/|$)/,
         /^@t3tools\/provider-core(?:\/|$)/,
         /^@t3tools\/shared(?:\/|$)/,
         /^effect-codex-app-server(?:\/|$)/,

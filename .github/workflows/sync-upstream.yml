@@ -81,8 +81,8 @@ jobs:
       - name: Verify embedded providers before advancing main
         if: steps.sync.outputs.changed == 'true' || inputs.publish_packages
         run: |
-          vp run --filter @t3tools/contracts --filter @vite-hub/provider-runtime build
-          vp run --filter @vite-hub/provider-runtime typecheck
+          vp run --filter @t3tools/contracts --filter @t3tools/provider-runtime build
+          vp run --filter @t3tools/provider-runtime typecheck
           vp test run packages/provider-runtime/src apps/server/src/orchestration-v2/Adapters/ClaudeAdapterV2.lazy.test.ts apps/server/src/provider/ProviderRegistry.test.ts apps/server/src/provider/codexUsageLimits.test.ts apps/server/src/provider/claudeUsageLimits.test.ts scripts/lib/cli-external-packages.test.ts --maxWorkers=2
 
       - name: Advance verified fork
@@ -94,9 +94,3 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: gh workflow run pkg-pr-new.yml --repo "$GITHUB_REPOSITORY" --ref main
-
-      - name: Release the runtime to npm
-        if: steps.sync.outputs.changed == 'true'
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: gh workflow run release-provider-runtime.yml --repo "$GITHUB_REPOSITORY" --ref main

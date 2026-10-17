@@ -22,58 +22,102 @@ async function run(command: string, args: ReadonlyArray<string>, cwd: string) {
 
 interface PackageManifest {
   readonly name: string;
+  readonly version: string;
   readonly dependencies?: Readonly<Record<string, string>>;
+  readonly devDependencies?: Readonly<Record<string, string>>;
   readonly peerDependencies?: Readonly<Record<string, string>>;
-  readonly optionalDependencies?: Readonly<Record<string, string>>;
+  readonly [key: string]: unknown;
+}
+
+async function readManifest(packageJsonPath: string): Promise<PackageManifest> {
+  return JSON.parse(await NodeFSP.readFile(packageJsonPath, "utf8")) as PackageManifest;
+}
+
+function publishedManifest(
+  manifest: PackageManifest,
+  dependencies: Readonly<Record<string, string>>,
+  peerDependencies?: Readonly<Record<string, string>>,
+) {
+  const { devDependencies: _devDependencies, scripts: _scripts, ...published } = manifest;
+  return {
+    ...published,
+    dependencies,
+    ...(peerDependencies ? { peerDependencies } : {}),
+  };
 }
 
 describe("provider-runtime package artifact", () => {
   it(
-    "installs from the registry tarball and starts a Codex-only consumer without the Claude SDK",
+    "starts a Codex-only consumer with ESM Node builtins and no Claude SDK",
     { timeout: 120_000 },
     async () => {
       const temporaryDirectory = await NodeFSP.mkdtemp(
-        NodePath.join(NodeOS.tmpdir(), "vitehub-provider-runtime-package-"),
+        NodePath.join(NodeOS.tmpdir(), "t3-provider-runtime-package-"),
       );
       const consumerDirectory = NodePath.join(temporaryDirectory, "consumer");
+      const contractsDirectory = NodePath.join(repositoryDirectory, "packages/contracts");
+      const contractsPackageDirectory = NodePath.join(temporaryDirectory, "contracts-package");
+      const providerRuntimePackageDirectory = NodePath.join(
+        temporaryDirectory,
+        "provider-runtime-package",
+      );
 
       try {
-        await run(vp, ["pack"], packageDirectory);
+        const packageArtifacts = [
+          [contractsDirectory, contractsPackageDirectory],
+          [packageDirectory, providerRuntimePackageDirectory],
+        ] satisfies ReadonlyArray<readonly [string, string]>;
+        await Promise.all(
+          packageArtifacts.map(([sourceDirectory, artifactDirectory]) =>
+            run(
+              vp,
+              ["pack", "--out-dir", NodePath.join(artifactDirectory, "dist")],
+              sourceDirectory,
+            ),
+          ),
+        );
+
         const bundle = await NodeFSP.readFile(
-          NodePath.join(packageDirectory, "dist/index.mjs"),
+          NodePath.join(providerRuntimePackageDirectory, "dist/index.mjs"),
           "utf8",
         );
-        const declarations = await NodeFSP.readFile(
-          NodePath.join(packageDirectory, "dist/index.d.mts"),
-          "utf8",
+        expect(bundle).not.toMatch(
+          /import\s*\(\s*(?:\/\*[\s\S]*?\*\/\s*)?["']@anthropic-ai\/claude-agent-sdk["']\s*\)/u,
         );
         expect(bundle).not.toContain("@anthropic-ai/claude-agent-sdk");
-        // The private T3 workspace packages must ship inside the bundle.
-        for (const output of [bundle, declarations]) {
-          expect(output).not.toMatch(/from\s*["']@t3tools\//u);
-          expect(output).not.toMatch(/import\s*\(\s*["']@t3tools\//u);
-        }
 
-        const { stdout } = await run(
-          "pnpm",
-          ["pack", "--pack-destination", temporaryDirectory, "--json"],
-          packageDirectory,
+        const contractsManifest = await readManifest(
+          NodePath.join(contractsDirectory, "package.json"),
         );
-        const tarball = (JSON.parse(stdout) as { readonly filename: string }).filename;
-        await run("tar", ["-xzf", tarball, "-C", temporaryDirectory], temporaryDirectory);
-        const manifest = JSON.parse(
-          await NodeFSP.readFile(NodePath.join(temporaryDirectory, "package/package.json"), "utf8"),
-        ) as PackageManifest;
-        // pnpm 12 rejects URL, git and file dependencies below the root (blockExoticSubdeps).
-        const specifiers = Object.entries({
-          ...manifest.dependencies,
-          ...manifest.optionalDependencies,
-          ...manifest.peerDependencies,
-        });
-        expect(specifiers.map(([name]) => name)).toEqual(["effect"]);
-        for (const [, specifier] of specifiers) {
-          expect(specifier).toMatch(/^\^?\d+\.\d+\.\d+/u);
-        }
+        const providerRuntimeManifest = await readManifest(
+          NodePath.join(packageDirectory, "package.json"),
+        );
+        const effectManifest = await readManifest(
+          NodePath.join(packageDirectory, "node_modules/effect/package.json"),
+        );
+        expect(providerRuntimeManifest.dependencies).not.toHaveProperty(
+          "@anthropic-ai/claude-agent-sdk",
+        );
+        expect(providerRuntimeManifest.devDependencies).toHaveProperty(
+          "@anthropic-ai/claude-agent-sdk",
+        );
+        await Promise.all([
+          NodeFSP.writeFile(
+            NodePath.join(contractsPackageDirectory, "package.json"),
+            JSON.stringify(
+              publishedManifest(contractsManifest, {}, { effect: effectManifest.version }),
+            ),
+          ),
+          NodeFSP.writeFile(
+            NodePath.join(providerRuntimePackageDirectory, "package.json"),
+            JSON.stringify(
+              publishedManifest(providerRuntimeManifest, {
+                "@t3tools/contracts": contractsManifest.version,
+                effect: effectManifest.version,
+              }),
+            ),
+          ),
+        ]);
 
         await NodeFSP.mkdir(consumerDirectory);
         await NodeFSP.writeFile(
@@ -82,8 +126,15 @@ describe("provider-runtime package artifact", () => {
             name: "provider-runtime-codex-consumer",
             private: true,
             type: "module",
-            dependencies: { [manifest.name]: `file:${tarball}` },
+            dependencies: {
+              "@t3tools/contracts": "file:../contracts-package",
+              "@t3tools/provider-runtime": "file:../provider-runtime-package",
+            },
           }),
+        );
+        await NodeFSP.writeFile(
+          NodePath.join(consumerDirectory, "pnpm-workspace.yaml"),
+          'overrides:\n  "@t3tools/contracts": "file:../contracts-package"\n',
         );
         await NodeFSP.writeFile(
           NodePath.join(consumerDirectory, "verify.mjs"),
@@ -95,7 +146,7 @@ describe("provider-runtime package artifact", () => {
             "  }",
             "  return nextResolve(specifier, context);",
             "} });",
-            `const { createProviderRuntime } = await import(${JSON.stringify(manifest.name)});`,
+            'const { createProviderRuntime } = await import("@t3tools/provider-runtime");',
             'const runtime = await createProviderRuntime({ provider: "codex" });',
             "await runtime.close();",
           ].join("\n"),
