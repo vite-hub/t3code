@@ -19,8 +19,9 @@ const claudeSdk = vi.hoisted(() => ({
       }) => object
     >(),
 }));
-vi.mock("../../../apps/server/src/provider/Drivers/ClaudeSdk.ts", () => ({
-  importClaudeAgentSdk: async () => claudeSdk,
+vi.mock("@anthropic-ai/claude-agent-sdk", async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  ...claudeSdk,
 }));
 
 const directories: string[] = [];

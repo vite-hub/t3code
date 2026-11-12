@@ -34,15 +34,6 @@ const CURSOR_RUNTIME_DEPENDENCIES = [
   "@fastify/busboy",
 ] as const;
 
-// Computed imports do not reach the bundler's package hooks, but desktop
-// artifacts still need their package roots, and their required peers, in the
-// staged production install.
-const CLI_RUNTIME_STAGE_ONLY_DEPENDENCIES = [
-  "@anthropic-ai/claude-agent-sdk",
-  "@anthropic-ai/sdk",
-  "@modelcontextprotocol/sdk",
-] as const;
-
 export function isRuntimeExternalCliDependency(id: string): boolean {
   return (
     CLI_RUNTIME_EXTERNAL_PREFIXES.some((prefix) => id.startsWith(prefix)) ||
@@ -64,11 +55,7 @@ export function selectCliRuntimeExternalDependencies(
   dependencies: Readonly<Record<string, string>>,
 ): Record<string, string> {
   return Object.fromEntries(
-    Object.entries(dependencies).filter(
-      ([name]) =>
-        isRuntimeExternalCliDependency(name) ||
-        CLI_RUNTIME_STAGE_ONLY_DEPENDENCIES.some((dependency) => dependency === name),
-    ),
+    Object.entries(dependencies).filter(([name]) => isRuntimeExternalCliDependency(name)),
   );
 }
 

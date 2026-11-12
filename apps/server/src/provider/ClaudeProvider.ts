@@ -18,13 +18,14 @@ import * as Schema from "effect/Schema";
 import { ChildProcess, ChildProcessSpawner } from "effect/process";
 import { createModelCapabilities } from "@t3tools/shared/model";
 import { resolveSpawnCommand } from "@t3tools/shared/shell";
-import type {
-  ModelInfo as ClaudeModelInfo,
-  Options as ClaudeQueryOptions,
-  SlashCommand as ClaudeSlashCommand,
-  SDKControlGetUsageResponse,
-  SDKUserMessage,
-  SettingSource,
+import {
+  query as claudeQuery,
+  type ModelInfo as ClaudeModelInfo,
+  type Options as ClaudeQueryOptions,
+  type SlashCommand as ClaudeSlashCommand,
+  type SDKControlGetUsageResponse,
+  type SDKUserMessage,
+  type SettingSource,
 } from "@anthropic-ai/claude-agent-sdk";
 
 import {
@@ -39,7 +40,6 @@ import {
   type ServerProviderDraft,
 } from "@t3tools/provider-core/server/snapshotProbe";
 import { resolveClaudeSdkExecutablePath } from "./Drivers/ClaudeExecutable.ts";
-import { importClaudeAgentSdk } from "./Drivers/ClaudeSdk.ts";
 import {
   claudeSignedOutMessage,
   hasClaudeManagedMcpConfig,
@@ -465,7 +465,6 @@ const probeClaudeCapabilities = (
       : 0;
     return yield* Effect.tryPromise({
       try: async () => {
-        const { query: claudeQuery } = await importClaudeAgentSdk();
         const q = claudeQuery({
           // oxlint-disable-next-line require-yield -- never yields, so no prompt reaches the API
           prompt: (async function* (): AsyncGenerator<SDKUserMessage> {

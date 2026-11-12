@@ -36,36 +36,39 @@ import {
   type ClaudeModelLedger,
 } from "../../provider/ClaudeTurnTokenUsage.ts";
 import { toMcpElicitationResponse } from "../../provider/CodexMcpElicitation.ts";
-import { importClaudeAgentSdk } from "../../provider/Drivers/ClaudeSdk.ts";
-import type {
-  CanUseTool,
-  ElicitationRequest,
-  ElicitationResult,
-  EffortLevel,
-  ForkSessionOptions,
-  ForkSessionResult,
-  HookCallback,
-  McpServerStatus as ClaudeMcpServerStatus,
-  Options as ClaudeQueryOptions,
-  PermissionMode,
-  PermissionResult,
-  PermissionUpdate,
-  Query as ClaudeQuery,
-  Settings as ClaudeSdkSettings,
-  SpawnOptions as ClaudeSpawnOptions,
-  SpawnedProcess as ClaudeSpawnedProcess,
-  SDKAssistantMessage,
-  SDKAPIRetryMessage,
-  SDKMessage,
-  SDKRateLimitInfo,
-  SDKResultMessage,
-  SDKUserMessage,
+import {
+  type CanUseTool,
+  type ElicitationRequest,
+  type ElicitationResult,
+  forkSession as forkClaudeSession,
+  type EffortLevel,
+  type ForkSessionOptions,
+  type ForkSessionResult,
+  getSessionMessages,
+  getSubagentMessages,
+  type HookCallback,
+  type McpServerStatus as ClaudeMcpServerStatus,
+  query,
+  resolveSettings as resolveClaudeSettings,
+  type Options as ClaudeQueryOptions,
+  type PermissionMode,
+  type PermissionResult,
+  type PermissionUpdate,
+  type Query as ClaudeQuery,
+  type Settings as ClaudeSdkSettings,
+  type SpawnOptions as ClaudeSpawnOptions,
+  type SpawnedProcess as ClaudeSpawnedProcess,
+  type SDKAssistantMessage,
+  type SDKAPIRetryMessage,
+  type SDKMessage,
+  type SDKRateLimitInfo,
+  type SDKResultMessage,
+  type SDKUserMessage,
 } from "@anthropic-ai/claude-agent-sdk";
 import type {
   AskUserQuestionInput,
   WebSearchOutput,
 } from "@anthropic-ai/claude-agent-sdk/sdk-tools";
-
 // @effect-diagnostics-next-line nodeBuiltinImport:off -- the SDK takes a Node ChildProcess for the CLI.
 import * as NodeChildProcess from "node:child_process";
 import * as NodeUtil from "node:util";
@@ -240,17 +243,6 @@ import {
   makeSubagentConversationArtifacts,
   subagentThreadTitle,
 } from "@t3tools/provider-core/server/subagentProjection";
-
-// The SDK loads on first use so Claude stays opt-in for embedded hosts.
-type ClaudeAgentSdk = Awaited<ReturnType<typeof importClaudeAgentSdk>>;
-const forkClaudeSession: ClaudeAgentSdk["forkSession"] = async (...args) =>
-  (await importClaudeAgentSdk()).forkSession(...args);
-const getSessionMessages: ClaudeAgentSdk["getSessionMessages"] = async (...args) =>
-  (await importClaudeAgentSdk()).getSessionMessages(...args);
-const getSubagentMessages: ClaudeAgentSdk["getSubagentMessages"] = async (...args) =>
-  (await importClaudeAgentSdk()).getSubagentMessages(...args);
-const resolveClaudeSettings: ClaudeAgentSdk["resolveSettings"] = async (...args) =>
-  (await importClaudeAgentSdk()).resolveSettings(...args);
 
 export const CLAUDE_PROVIDER = ProviderDriverKind.make("claudeAgent");
 /** The query exited before the turn attached, so the prompt was never offered. */
@@ -1426,10 +1418,6 @@ export const layerQueryRunner: Layer.Layer<
             });
             return child;
           };
-          const { query } = yield* Effect.tryPromise({
-            try: () => importClaudeAgentSdk(),
-            catch: (cause) => queryRunnerError(cause, "query"),
-          });
           const queryRuntime = yield* Effect.uninterruptibleMask((restore) =>
             Effect.try({
               try: () =>
