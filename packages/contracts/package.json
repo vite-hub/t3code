@@ -27,7 +27,7 @@
   },
   "scripts": {
     "build": "vp pack",
-    "typecheck": "tsc-rs --noEmit",
+    "typecheck": "effect-tsgo tsrs --noEmit",
     "test": "vp test run --config ../../vite.config.ts --dir ."
   },
   "devDependencies": {
