@@ -959,6 +959,7 @@ describe("CodexAdapterV2 session initialize", () => {
     transcript: CodexReplay.CodexAppServerReplayTranscript,
     beforeEmitInbound?: CodexReplay.CodexAppServerReplayDriver["beforeEmitInbound"],
     compatibility?: CodexAdapterV2.CodexAdapterV2Options["compatibility"],
+    skillRoots?: ReadonlyArray<string>,
   ) =>
     Effect.gen(function* () {
       const driver = yield* CodexReplay.makeReplayDriver(
@@ -1009,6 +1010,7 @@ describe("CodexAdapterV2 session initialize", () => {
         providerSessionId: ProviderSessionId.make(`provider-session-${transcript.scenario}`),
         modelSelection: CODEX_TEST_MODEL_SELECTION,
         runtimePolicy: CODEX_TEST_RUNTIME_POLICY,
+        ...(skillRoots === undefined ? {} : { skillRoots }),
       });
       return {
         ensureThread: (threadId: string) =>
@@ -1062,6 +1064,44 @@ describe("CodexAdapterV2 session initialize", () => {
         providerThreads.map((providerThread) => providerThread.nativeThreadRef?.nativeId),
         ["concurrent-first", "concurrent-second"],
       );
+    }).pipe(
+      Effect.scoped,
+      Effect.provide(
+        Layer.mergeAll(
+          IdAllocator.layer,
+          McpProviderSessions.layer,
+          NodeServices.layer,
+          NodeCrypto.layer,
+        ),
+      ),
+    ),
+  );
+
+  it.effect("sets extra skill roots after the handshake and before the first thread", () =>
+    Effect.gen(function* () {
+      const preamble = replayPreamble("extra-skill-roots");
+      const extraRoots = ["/tmp/vitehub-skills/one", "/tmp/vitehub-skills/two"];
+      const session = yield* openReplaySession(
+        makeCodexReplayTranscript({
+          scenario: "extra-skill-roots",
+          entries: [
+            ...preamble.slice(0, 3),
+            {
+              type: "expect_outbound",
+              label: "skills/extraRoots/set",
+              frame: { id: 2, method: "skills/extraRoots/set", params: { extraRoots } },
+            },
+            { type: "emit_inbound", label: "skills/extraRoots/set", frame: { id: 2, result: {} } },
+            ...preamble.slice(3, 5).map((entry) => withReplayRequestId(entry, 3)),
+          ],
+        }),
+        undefined,
+        undefined,
+        extraRoots,
+      );
+
+      const providerThread = yield* session.ensureThread("thread-extra-skill-roots");
+      assert.equal(providerThread.nativeThreadRef?.nativeId, "extra-skill-roots");
     }).pipe(
       Effect.scoped,
       Effect.provide(
