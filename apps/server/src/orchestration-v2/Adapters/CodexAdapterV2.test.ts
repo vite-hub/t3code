@@ -2780,6 +2780,7 @@ describe("CodexAdapterV2 post-settle continuation", () => {
           endpoint: "http://127.0.0.1:43123/mcp",
           authorizationHeader: "Bearer test",
           browserToolsAvailable: true,
+          capabilities: new Set(["orchestration", "worktree", "pull-requests", "preview"]),
         });
         yield* harness.runtime.startTurn(
           makeCodexTestTurnInput({
@@ -2798,6 +2799,78 @@ describe("CodexAdapterV2 post-settle continuation", () => {
           ["item/completed", "turn/completed", "thread/inject_items"],
           "restored T3 context while the compacting native turn was still running",
         );
+      }).pipe(
+        Effect.provide(
+          Layer.mergeAll(
+            IdAllocator.layer,
+            McpProviderSessions.layer,
+            NodeServices.layer,
+            NodeCrypto.layer,
+          ),
+        ),
+      ),
+    ),
+  );
+
+  // provider-runtime hosts (ViteHub) attach their own MCP server, which has none of T3's tools.
+  it.effect("sends no T3 context when the MCP session is not one the app issued", () =>
+    Effect.scoped(
+      Effect.gen(function* () {
+        const nativeThreadId = "embedded-mcp-thread";
+        const nativeTurnId = "embedded-mcp-turn";
+        const params = yield* CodexAdapterV2.buildCodexTurnStartParams({
+          nativeThreadId,
+          codexInput: [{ type: "text", text: "work" }],
+          runtimePolicy: CODEX_TEST_RUNTIME_POLICY,
+          modelSelection: CODEX_TEST_MODEL_SELECTION,
+        });
+        assert.isUndefined(params.additionalContext);
+        const entries = codexReplayPreamble({ nativeThreadId, nativeTurnId, prompt: "work" });
+        const harness = yield* makeCodexReplayHarness(
+          makeCodexReplayTranscript({
+            scenario: "embedded-mcp-context",
+            entries: [
+              ...entries.slice(0, 5),
+              {
+                type: "expect_outbound",
+                label: "turn without T3 context",
+                frame: { id: 3, method: "turn/start", params },
+              },
+              ...entries.slice(6),
+              {
+                type: "emit_inbound",
+                label: "done",
+                frame: {
+                  method: "turn/completed",
+                  params: {
+                    threadId: nativeThreadId,
+                    turn: makeCodexReplayTurn({ id: nativeTurnId, status: "completed" }),
+                  },
+                },
+              },
+            ],
+          }),
+        );
+        yield* (yield* McpProviderSessions.McpProviderSessions).set({
+          environmentId: EnvironmentId.make("embedded"),
+          threadId: harness.threadId,
+          providerSessionId: "embedded-session",
+          providerInstanceId: ProviderInstanceId.make("codex"),
+          endpoint: "http://127.0.0.1:43123/mcp",
+          authorizationHeader: "Bearer host",
+          browserToolsAvailable: false,
+        });
+        yield* harness.runtime.startTurn(
+          makeCodexTestTurnInput({
+            threadId: harness.threadId,
+            providerThread: harness.providerThread,
+            now: yield* DateTime.now,
+            attemptId: RunAttemptId.make("embedded-mcp-attempt"),
+            text: "work",
+          }),
+        );
+        yield* harness.firstTerminal;
+        assert.equal(harness.terminalEvents()[0]?.status, "completed");
       }).pipe(
         Effect.provide(
           Layer.mergeAll(
@@ -10025,6 +10098,7 @@ describe("CodexAdapterV2 post-settle continuation", () => {
           endpoint: "http://127.0.0.1:43123/mcp",
           authorizationHeader: "Bearer test",
           browserToolsAvailable: true,
+          capabilities: new Set(["orchestration", "worktree", "pull-requests", "preview"]),
           hasPendingWake: Deferred.succeed(lookupStarted, undefined).pipe(
             Effect.andThen(Deferred.await(lookupAnswered)),
             Effect.as(true),
