@@ -12,13 +12,10 @@ import {
   type OrchestrationV2TurnItem,
   type ProviderDriverKind,
   type ProviderInstanceId,
-  type ProviderRuntimeEvent,
   type ProviderTurnId,
   type RunAttemptId,
   type RunId,
-  RuntimeItemId,
   RuntimeRequestId,
-  RuntimeTaskId,
   type ThreadId,
   type ThreadTokenUsageSnapshot,
   TurnId,
@@ -26,6 +23,7 @@ import {
 } from "@t3tools/contracts";
 
 import type { ProviderAdapterV2Event } from "../../provider-core/src/server/ProviderAdapter.ts";
+import { type ProviderRuntimeEvent, RuntimeItemId, RuntimeTaskId } from "./legacy-contracts.ts";
 
 /**
  * One embedded turn. The host sees a stable `turnId`; the provider reports its
@@ -269,6 +267,10 @@ export class LegacyEventTranslator {
       case "plan.updated":
       // Live command output is not persisted; the final output arrives with `turn_item.updated`.
       case "command_output.delta":
+      // T3 client state with no legacy event: background work, suggestions, and steer status.
+      case "background_work.updated":
+      case "prompt_suggestion.updated":
+      case "steer.updated":
         return [];
     }
   }
@@ -579,6 +581,13 @@ export class LegacyEventTranslator {
           title: item.label,
           detail: nonEmpty(item.reason),
           data: { kind: item.type, secretStatus: item.secretStatus },
+        });
+      case "link_request":
+        return this.#translateLifecycleItem(item, refs, {
+          itemType: "unknown",
+          title: item.label ?? item.url,
+          detail: nonEmpty(item.reason),
+          data: { kind: item.type, linkStatus: item.linkStatus },
         });
     }
   }

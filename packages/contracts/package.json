@@ -27,12 +27,13 @@
   },
   "scripts": {
     "build": "vp pack",
-    "typecheck": "tsc-rs --noEmit",
+    "typecheck": "effect-tsgo tsrs --noEmit",
     "test": "vp test run --config ../../vite.config.ts --dir ."
   },
   "devDependencies": {
     "@effect/vitest": "catalog:",
     "effect": "catalog:",
+    "typescript": "~6.0.3",
     "vite-plus": "catalog:"
   },
   "peerDependencies": {

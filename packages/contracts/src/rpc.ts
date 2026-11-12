@@ -2,6 +2,8 @@ import {
   OrchestrationV2SearchThreadError,
   OrchestrationV2SearchThreadInput,
   OrchestrationV2SearchThreadResult,
+  OrchestrationV2SearchThreadsInput,
+  OrchestrationV2SearchThreadsResult,
 } from "./orchestrationV2.ts";
 import { OrchestrationDispatchCommandError } from "./orchestrationDispatch.ts";
 import {
@@ -15,6 +17,16 @@ import {
   McpAppUpdateModelContextInput,
 } from "./mcpApps.ts";
 import {
+  PeerLink,
+  PeerLinkCreateInput,
+  PeerLinkError,
+  PeerLinkRemoveInput,
+  PeerLinkRemoveResult,
+  PeerLinkRequestAnswerInput,
+  PeerLinkRequestError,
+  PeerLinkSummary,
+} from "./peerLink.ts";
+import {
   ChatGptReconnectProfileInput,
   ChatGptReconnectProfile,
   ChatGptImportProfileInput,
@@ -24,15 +36,15 @@ import {
 import * as Schema from "effect/Schema";
 import * as Rpc from "effect/rpc/Rpc";
 import * as RpcGroup from "effect/rpc/RpcGroup";
+import * as RpcSchema from "effect/rpc/RpcSchema";
 import * as RpcMiddleware from "effect/rpc/RpcMiddleware";
 import { NonNegativeInt, TrimmedNonEmptyString } from "./baseSchemas.ts";
 import {
-  CodexAuthCallbackInput,
-  CodexAuthCallbackState,
   ProviderAuthCancelInput,
   ProviderAuthCompleteInput,
   ProviderAuthState,
   ProviderAuthStartInput,
+  ProviderAuthRemoveMethodInput,
   ProviderAuthRespondInput,
   ProviderInstallCancelInput,
   ProviderInstallState,
@@ -71,11 +83,7 @@ import {
   AuthAccessStreamEvent,
   EnvironmentAuthorizationError,
 } from "./auth.ts";
-import {
-  BackgroundPolicySnapshot,
-  ClientActivityReportInput,
-  HostPowerSnapshot,
-} from "./background.ts";
+import { ClientActivityReportInput } from "./background.ts";
 import {
   FilesystemGetMetadataInput,
   FilesystemGetMetadataResult,
@@ -138,11 +146,14 @@ import {
   GitResolvePullRequestResult,
   GitRunStackedActionInput,
   VcsStatusInput,
+  VcsBranchStatus,
   VcsStatusSubscriptionInput,
   VcsStatusResult,
   VcsStatusStreamEvent,
 } from "./git.ts";
 import {
+  ReviewBranchCommitsInput,
+  ReviewBranchCommitsResult,
   ReviewDiffFileContentsInput,
   ReviewDiffFileContentsResult,
   ReviewDiffPreviewError,
@@ -150,21 +161,23 @@ import {
   ReviewDiffPreviewResult,
 } from "./review.ts";
 import { KeybindingsConfigError } from "./keybindings.ts";
-import {
-  OrchestrationSearchThreadsError,
-  OrchestrationSearchThreadsInput,
-  OrchestrationSearchThreadsResult,
-} from "./threadSearch.ts";
+import { OrchestrationSearchThreadsError } from "./threadSearch.ts";
 import {
   ProviderUploadFeedbackError,
   ProviderUploadFeedbackInput,
   ProviderUploadFeedbackResult,
 } from "./provider.ts";
 import { ProviderInstanceId, ProviderInstanceMutation } from "./providerInstance.ts";
+import {
+  GuestShareCreateError,
+  GuestShareCreateInput,
+  GuestShareCreateResult,
+} from "./guestShare.ts";
 import { PullRequestReviewGuideResult } from "./pullRequestReviewGuide.ts";
 import {
   PullRequestActionInput,
   PullRequestActivity,
+  PullRequestChangeBreakdown,
   PullRequestCommentInput,
   PullRequestCommentUpdateInput,
   PullRequestDetail,
@@ -179,6 +192,8 @@ import {
   PullRequestListResult,
   PullRequestListStatsInput,
   PullRequestListStatsResult,
+  PullRequestFilterOptions,
+  PullRequestFilterOptionsInput,
   PullRequestOperationError,
   PullRequestReactionInput,
   PullRequestRef,
@@ -189,6 +204,7 @@ import {
   PullRequestLinkedThreadsResult,
   PullRequestSummary,
   PullRequestReviewerCandidateList,
+  PullRequestReviewerCandidatesInput,
   PullRequestReviewerRequestInput,
   PullRequestLabelCandidateList,
   PullRequestLabelChangeInput,
@@ -209,7 +225,9 @@ import {
 import {
   ORCHESTRATION_V2_WS_METHODS,
   OrchestrationGetWorkflowScriptError,
+  OrchestrationV2GetNativeChildWorkError,
   OrchestrationV2StopWorkflowError,
+  OrchestrationV2ForceStopThreadError,
   OrchestrationV2DispatchCommandError,
   OrchestrationV2GetShellSnapshotError,
   OrchestrationV2CommandOutputError,
@@ -220,10 +238,14 @@ import {
 import {
   ProjectCreateNewInput,
   ProjectCreateNewResult,
+  ProjectCreateFromThreadInput,
+  ProjectCreateFromThreadResult,
   ProjectEnsureScratchResult,
   ProjectListEntriesError,
   ProjectListEntriesInput,
   ProjectListEntriesResult,
+  ProjectListIgnoredFilesInput,
+  ProjectListIgnoredFilesResult,
   ProjectReadFileError,
   ProjectReadFileInput,
   ProjectReadFileResult,
@@ -244,11 +266,9 @@ import {
   TerminalClearInput,
   TerminalCloseInput,
   TerminalError,
-  TerminalEvent,
   TerminalMetadataStreamEvent,
   TerminalOpenInput,
   TerminalResizeInput,
-  TerminalRestartInput,
   TerminalSessionSnapshot,
   TerminalWriteInput,
 } from "./terminal.ts";
@@ -263,9 +283,9 @@ import {
   PreviewClearProfileError,
   PreviewClearProfileInput,
   PreviewReportProfilesInput,
-  PreviewNavigateInput,
+  PreviewStopLocalServerError,
+  PreviewStopLocalServerInput,
   PreviewOpenInput,
-  PreviewRefreshInput,
   PreviewReportStatusInput,
   PreviewResizeInput,
   PreviewAdjustInput,
@@ -280,17 +300,25 @@ import {
   DeviceError,
   DeviceListInput,
   SshDeviceHostConfig,
+  DeviceEasAccount,
+  DeviceEasAccountError,
+  DeviceEasAccountInput,
+  DeviceSimlockIdentity,
+  DeviceSimlockIdentityError,
+  DeviceSimlockIdentityInput,
   DeviceHostSummary,
   DeviceOpenInput,
   DeviceServiceState,
   DeviceSession,
   DeviceShutdownInput,
 } from "./device.ts";
-import {} from "./previewAutomation.ts";
 import {
   ServerConfigStreamEvent,
   DesktopUpdateCommitInput,
   OtlpEndpointCheckInput,
+  ServerPrepareTriageError,
+  ServerPrepareTriageInput,
+  ServerPrepareTriageResult,
   OtlpEndpointCheckResult,
   ServerConfig,
   ServerProviderUpdateError,
@@ -300,6 +328,9 @@ import {
   ServerRemoveKeybindingResult,
   ServerProviderUpdatedPayload,
   ServerSelfUpdateError,
+  ServerNpmRelease,
+  ServerNpmReleaseError,
+  ServerNpmReleaseInput,
   ServerSelfUpdateInput,
   ServerSelfUpdateProgressEvent,
   ServerSelfUpdateResult,
@@ -327,10 +358,14 @@ import {
 import { UsagePricing, UsageReadError, UsageSummary, UsageSummaryInput } from "./usage.ts";
 import {
   StorageCleanupReport,
+  DatabaseReclaimError,
   DatabaseStorageStatus,
   ServerSettings,
   ServerSettingsError,
   ServerSettingsPatch,
+  ListTextGeneratorModelsInput,
+  ListTextGeneratorModelsResult,
+  TextGeneratorError,
 } from "./settings.ts";
 import {
   ScheduledTaskDeleteInput,
@@ -367,15 +402,20 @@ import {
   SourceControlRepositoryError,
   SourceControlRepositoryInfo,
   SourceControlRepositoryLookupInput,
+  SourceControlAppAccess,
+  SourceControlAppAccessInput,
+  SourceControlStarredInput,
+  SourceControlSignInError,
+  SourceControlSignInInput,
+  SourceControlSignInPrompt,
+  SourceControlSignInResult,
 } from "./sourceControl.ts";
 import { VcsError } from "./vcs.ts";
 import { Project, ProjectMutation, ProjectMutationError } from "./project.ts";
 
 export const WS_METHODS = {
-  projectsList: "projects.list",
-  projectsAdd: "projects.add",
-  projectsRemove: "projects.remove",
   projectsListEntries: "projects.listEntries",
+  projectsListIgnoredFiles: "projects.listIgnoredFiles",
   projectsReadFile: "projects.readFile",
   projectsSearchContents: "projects.searchContents",
   projectsSearchEntries: "projects.searchEntries",
@@ -383,6 +423,7 @@ export const WS_METHODS = {
   projectsMutate: "projects.mutate",
   projectsEnsureScratch: "projects.ensureScratch",
   projectsCreateNew: "projects.createNew",
+  projectsCreateFromThread: "projects.createFromThread",
 
   shellOpenInEditor: "shell.openInEditor",
 
@@ -407,9 +448,9 @@ export const WS_METHODS = {
   chatGptReconnectProfile: "provider.chatgpt.reconnect-profile",
   chatGptImportProfile: "provider.chatgpt.import-profile",
   chatGptHandoffSubscribe: "provider.chatgpt.handoff.subscribe",
-  codexAuthCallbackSubscribe: "provider.codex.auth-callback.subscribe",
   providerAuthRespond: "provider.auth.respond",
   providerAuthCancel: "provider.auth.cancel",
+  providerAuthRemoveMethod: "provider.auth.removeMethod",
   providerAuthLogout: "provider.auth.logout",
   providerAuthSubscribe: "provider.auth.subscribe",
   providerInstallStart: "provider.install.start",
@@ -430,6 +471,7 @@ export const WS_METHODS = {
   gitResolvePullRequest: "git.resolvePullRequest",
   gitPreparePullRequestThread: "git.preparePullRequestThread",
 
+  reviewGetBranchCommits: "review.getBranchCommits",
   reviewGetDiffPreview: "review.getDiffPreview",
   reviewGetDiffFileContents: "review.getDiffFileContents",
 
@@ -439,23 +481,23 @@ export const WS_METHODS = {
   terminalWrite: "terminal.write",
   terminalResize: "terminal.resize",
   terminalClear: "terminal.clear",
-  terminalRestart: "terminal.restart",
   terminalClose: "terminal.close",
 
   previewOpen: "preview.open",
-  previewNavigate: "preview.navigate",
   previewResize: "preview.resize",
   previewAdjust: "preview.adjust",
-  previewRefresh: "preview.refresh",
   previewClose: "preview.close",
   previewList: "preview.list",
   previewClearProfile: "preview.clearProfile",
   previewReportProfiles: "preview.reportProfiles",
   previewReportStatus: "preview.reportStatus",
+  previewStopLocalServer: "preview.stopLocalServer",
 
   deviceConfigure: "device.configure",
   deviceList: "device.list",
   deviceTestHost: "device.testHost",
+  deviceEasAccount: "device.easAccount",
+  deviceSimlockIdentity: "device.simlockIdentity",
   deviceOpen: "device.open",
   deviceClose: "device.close",
   deviceShutdown: "device.shutdown",
@@ -464,6 +506,7 @@ export const WS_METHODS = {
 
   serverProbe: "server.probe",
   serverGetConfig: "server.getConfig",
+  serverGetNpmRelease: "server.getNpmRelease",
   serverRefreshProviders: "server.refreshProviders",
   serverUpdateProvider: "server.updateProvider",
   serverUpdateServer: "server.updateServer",
@@ -474,7 +517,11 @@ export const WS_METHODS = {
   serverRunStorageCleanup: "server.runStorageCleanup",
   serverGetStorageCleanupReport: "server.getStorageCleanupReport",
   serverGetDatabaseStorage: "server.getDatabaseStorage",
-  serverGetSettings: "server.getSettings",
+  serverReclaimDatabaseSpace: "server.reclaimDatabaseSpace",
+  peerLinksList: "peerLinks.list",
+  peerLinksLink: "peerLinks.link",
+  peerLinksUnlink: "peerLinks.unlink",
+  peerLinksAnswerRequest: "peerLinks.answerRequest",
   serverUpdateSettings: "server.updateSettings",
   serverDiscoverSourceControl: "server.discoverSourceControl",
   serverSearchAcpRegistry: "server.searchAcpRegistry",
@@ -495,14 +542,13 @@ export const WS_METHODS = {
   serverGetResourceTelemetryHistory: "server.getResourceTelemetryHistory",
   serverRetryResourceTelemetry: "server.retryResourceTelemetry",
   serverCheckOtlpEndpoint: "server.checkOtlpEndpoint",
+  serverListTextGeneratorModels: "server.listTextGeneratorModels",
+  serverPrepareTriage: "server.prepareTriage",
   serverSignalProcess: "server.signalProcess",
   serverReportClientActivity: "server.reportClientActivity",
-  serverReportHostPowerState: "server.reportHostPowerState",
-  serverGetBackgroundPolicy: "server.getBackgroundPolicy",
   serverGetUsageSummary: "server.getUsageSummary",
   serverRefreshUsageRates: "server.refreshUsageRates",
 
-  scheduledTasksList: "scheduledTasks.list",
   scheduledTasksSubscribe: "scheduledTasks.subscribe",
   scheduledTasksUpsert: "scheduledTasks.upsert",
   scheduledTasksSetEnabled: "scheduledTasks.setEnabled",
@@ -510,6 +556,7 @@ export const WS_METHODS = {
   scheduledTasksRunNow: "scheduledTasks.runNow",
   scheduledTasksRotateWebhookToken: "scheduledTasks.rotateWebhookToken",
   secretsAnswerRequest: "secrets.answerRequest",
+  guestShareCreate: "guestShare.create",
   scheduledTasksListWebhookDeliveries: "scheduledTasks.listWebhookDeliveries",
   scheduledTasksGetWebhookDelivery: "scheduledTasks.getWebhookDelivery",
 
@@ -518,6 +565,7 @@ export const WS_METHODS = {
 
   pullRequestsList: "pullRequests.list",
   pullRequestsListStats: "pullRequests.listStats",
+  pullRequestsFilterOptions: "pullRequests.filterOptions",
   pullRequestsSummary: "pullRequests.summary",
   pullRequestsRouting: "pullRequests.routing",
   pullRequestsRoutingIdentity: "pullRequests.routingIdentity",
@@ -532,6 +580,7 @@ export const WS_METHODS = {
   pullRequestsThreadComments: "pullRequests.threadComments",
   pullRequestsDiffFileContents: "pullRequests.diffFileContents",
   pullRequestsFilesViewed: "pullRequests.filesViewed",
+  pullRequestsChangeBreakdown: "pullRequests.changeBreakdown",
   pullRequestsSetFilesViewed: "pullRequests.setFilesViewed",
   pullRequestsRunAction: "pullRequests.runAction",
   pullRequestsUpdate: "pullRequests.update",
@@ -552,15 +601,22 @@ export const WS_METHODS = {
   sourceControlLookupRepository: "sourceControl.lookupRepository",
   sourceControlCloneRepository: "sourceControl.cloneRepository",
   sourceControlPublishRepository: "sourceControl.publishRepository",
+  sourceControlSignInStart: "sourceControl.signInStart",
+  sourceControlSignInWait: "sourceControl.signInWait",
+  sourceControlSignInCancel: "sourceControl.signInCancel",
+  sourceControlAppAccess: "sourceControl.appAccess",
+  sourceControlStarred: "sourceControl.starred",
+  sourceControlStar: "sourceControl.star",
   projectCloneStart: "projectClone.start",
   projectCloneCancel: "projectClone.cancel",
   projectCloneRetry: "projectClone.retry",
   subscribeProjectClones: "subscribeProjectClones",
 
   subscribeVcsStatus: "subscribeVcsStatus",
+  subscribeVcsBranch: "subscribeVcsBranch",
+  vcsRefreshBranch: "vcs.refreshBranch",
   subscribeWorktreeSetup: "subscribeWorktreeSetup",
   worktreeSetupCancel: "worktreeSetup.cancel",
-  subscribeTerminalEvents: "subscribeTerminalEvents",
   subscribeTerminalMetadata: "subscribeTerminalMetadata",
   subscribePreviewEvents: "subscribePreviewEvents",
   subscribeDiscoveredLocalServers: "subscribeDiscoveredLocalServers",
@@ -568,7 +624,6 @@ export const WS_METHODS = {
   subscribeServerConfig: "subscribeServerConfig",
   subscribeServerLifecycle: "subscribeServerLifecycle",
   subscribeAuthAccess: "subscribeAuthAccess",
-  subscribeBackgroundPolicy: "subscribeBackgroundPolicy",
   subscribeResourceTelemetry: "subscribeResourceTelemetry",
 } as const;
 
@@ -596,14 +651,30 @@ const WsServerGetConfigRpc = Rpc.make(WS_METHODS.serverGetConfig, {
   error: Schema.Union([KeybindingsConfigError, ServerSettingsError, EnvironmentAuthorizationError]),
 });
 
-const WsServerRefreshProvidersRpc = Rpc.make(WS_METHODS.serverRefreshProviders, {
+export const WsServerRefreshProvidersRpc = Rpc.make(WS_METHODS.serverRefreshProviders, {
   payload: Schema.Struct({
     instanceId: Schema.optional(ProviderInstanceId),
     cwd: Schema.optional(TrimmedNonEmptyString),
     fresh: Schema.optional(Schema.Boolean),
-    /** Explicit user request: bypass T3-owned caches and rediscover models.
-     * Background status refreshes must not open agent sessions. */
+    /** Bypass model caches; explicit rediscovery may open sessions, background refreshes must not. */
     refreshModels: Schema.optional(Schema.Boolean),
+    /**
+     * A model picker opened: refetch a model manifest older than a few minutes and probe providers
+     * only when it changed. The other fields are ignored and the config stream carries the result.
+     */
+    modelCatalogOnly: Schema.optional(Schema.Boolean),
+    /** Read secret references again; unlocking a vault can prompt on the host, so only explicit user refreshes ask. */
+    reloadSecrets: Schema.optional(Schema.Boolean),
+    /**
+     * Reply without snapshots, or with only the requested instance's cwd snapshot. Snapshots then
+     * reach the client only through these replies, so another client's scan shows on its next
+     * refresh, at most one TTL later.
+     */
+    workspaceSnapshotsOnDemand: Schema.optional(Schema.Boolean),
+    /** As on `subscribeServerConfig`: add /usage-limits to the replied snapshot. */
+    usageLimitsCommand: Schema.optional(Schema.Boolean),
+    /** As on `subscribeServerConfig`: a failed cwd scan replies with the machine catalog as a pending snapshot. */
+    providerCatalogsOnDemand: Schema.optional(Schema.Boolean),
   }),
   success: ServerProviderUpdatedPayload,
   error: Schema.Union([EnvironmentAuthorizationError, ProviderSetupError]),
@@ -657,15 +728,15 @@ const WsChatGptHandoffSubscribeRpc = Rpc.make(WS_METHODS.chatGptHandoffSubscribe
   error: ProviderSetupRpcError,
   stream: true,
 });
-const WsCodexAuthCallbackSubscribeRpc = Rpc.make(WS_METHODS.codexAuthCallbackSubscribe, {
-  payload: CodexAuthCallbackInput,
-  success: CodexAuthCallbackState,
-  error: ProviderSetupRpcError,
-  stream: true,
-});
 
 const WsProviderAuthCancelRpc = Rpc.make(WS_METHODS.providerAuthCancel, {
   payload: ProviderAuthCancelInput,
+  success: ProviderAuthState,
+  error: ProviderSetupRpcError,
+});
+
+const WsProviderAuthRemoveMethodRpc = Rpc.make(WS_METHODS.providerAuthRemoveMethod, {
+  payload: ProviderAuthRemoveMethodInput,
   success: ProviderAuthState,
   error: ProviderSetupRpcError,
 });
@@ -708,6 +779,12 @@ const WsProviderInstallRemoveRpc = Rpc.make(WS_METHODS.providerInstallRemove, {
   error: ProviderSetupRpcError,
 });
 
+const WsServerGetNpmReleaseRpc = Rpc.make(WS_METHODS.serverGetNpmRelease, {
+  payload: ServerNpmReleaseInput,
+  success: Schema.NullOr(ServerNpmRelease),
+  error: Schema.Union([ServerNpmReleaseError, EnvironmentAuthorizationError]),
+});
+
 const WsServerUpdateServerRpc = Rpc.make(WS_METHODS.serverUpdateServer, {
   payload: ServerSelfUpdateInput,
   success: ServerSelfUpdateResult,
@@ -746,10 +823,32 @@ const WsServerGetDatabaseStorageRpc = Rpc.make(WS_METHODS.serverGetDatabaseStora
   error: EnvironmentAuthorizationError,
 });
 
-const WsServerGetSettingsRpc = Rpc.make(WS_METHODS.serverGetSettings, {
+const WsServerReclaimDatabaseSpaceRpc = Rpc.make(WS_METHODS.serverReclaimDatabaseSpace, {
   payload: Schema.Struct({}),
-  success: ServerSettings,
-  error: Schema.Union([ServerSettingsError, EnvironmentAuthorizationError]),
+  error: Schema.Union([DatabaseReclaimError, EnvironmentAuthorizationError]),
+});
+
+const WsPeerLinksListRpc = Rpc.make(WS_METHODS.peerLinksList, {
+  payload: Schema.Struct({}),
+  success: Schema.Struct({ links: Schema.Array(PeerLinkSummary) }),
+  error: Schema.Union([PeerLinkError, EnvironmentAuthorizationError]),
+});
+
+const WsPeerLinksLinkRpc = Rpc.make(WS_METHODS.peerLinksLink, {
+  payload: PeerLinkCreateInput,
+  success: PeerLink,
+  error: Schema.Union([PeerLinkError, EnvironmentAuthorizationError]),
+});
+
+const WsPeerLinksUnlinkRpc = Rpc.make(WS_METHODS.peerLinksUnlink, {
+  payload: PeerLinkRemoveInput,
+  success: PeerLinkRemoveResult,
+  error: Schema.Union([PeerLinkError, EnvironmentAuthorizationError]),
+});
+
+const WsPeerLinksAnswerRequestRpc = Rpc.make(WS_METHODS.peerLinksAnswerRequest, {
+  payload: PeerLinkRequestAnswerInput,
+  error: Schema.Union([PeerLinkRequestError, EnvironmentAuthorizationError]),
 });
 
 const WsServerUpdateSettingsRpc = Rpc.make(WS_METHODS.serverUpdateSettings, {
@@ -884,6 +983,18 @@ const WsServerCheckOtlpEndpointRpc = Rpc.make(WS_METHODS.serverCheckOtlpEndpoint
   error: EnvironmentAuthorizationError,
 });
 
+const WsServerListTextGeneratorModelsRpc = Rpc.make(WS_METHODS.serverListTextGeneratorModels, {
+  payload: ListTextGeneratorModelsInput,
+  success: ListTextGeneratorModelsResult,
+  error: Schema.Union([TextGeneratorError, EnvironmentAuthorizationError]),
+});
+
+const WsServerPrepareTriageRpc = Rpc.make(WS_METHODS.serverPrepareTriage, {
+  payload: ServerPrepareTriageInput,
+  success: ServerPrepareTriageResult,
+  error: Schema.Union([ServerPrepareTriageError, EnvironmentAuthorizationError]),
+});
+
 const WsServerGetUsageSummaryRpc = Rpc.make(WS_METHODS.serverGetUsageSummary, {
   payload: UsageSummaryInput,
   success: UsageSummary,
@@ -920,17 +1031,6 @@ const WsServerReportClientActivityRpc = Rpc.make(WS_METHODS.serverReportClientAc
   error: EnvironmentAuthorizationError,
 });
 
-const WsServerReportHostPowerStateRpc = Rpc.make(WS_METHODS.serverReportHostPowerState, {
-  payload: HostPowerSnapshot,
-  error: EnvironmentAuthorizationError,
-});
-
-const WsServerGetBackgroundPolicyRpc = Rpc.make(WS_METHODS.serverGetBackgroundPolicy, {
-  payload: Schema.Struct({}),
-  success: BackgroundPolicySnapshot,
-  error: EnvironmentAuthorizationError,
-});
-
 const PullRequestRpcError = Schema.Union([
   PullRequestUnavailableError,
   PullRequestOperationError,
@@ -943,14 +1043,16 @@ const WsPullRequestsListRpc = Rpc.make(WS_METHODS.pullRequestsList, {
   error: PullRequestRpcError,
 });
 
-/**
- * The line counts for rows already on the page. Its own call because on GitHub the pair costs
- * 40-60% of the listing read that answers everything else on the row, so the rows arrive first
- * and their stats a moment later.
- */
+// GitHub line counts cost 40-60% of the listing read; fetch separately so rows arrive first.
 const WsPullRequestsListStatsRpc = Rpc.make(WS_METHODS.pullRequestsListStats, {
   payload: PullRequestListStatsInput,
   success: PullRequestListStatsResult,
+  error: PullRequestRpcError,
+});
+
+const WsPullRequestsFilterOptionsRpc = Rpc.make(WS_METHODS.pullRequestsFilterOptions, {
+  payload: PullRequestFilterOptionsInput,
+  success: PullRequestFilterOptions,
   error: PullRequestRpcError,
 });
 
@@ -1038,6 +1140,12 @@ const WsPullRequestsFilesViewedRpc = Rpc.make(WS_METHODS.pullRequestsFilesViewed
   error: PullRequestRpcError,
 });
 
+const WsPullRequestsChangeBreakdownRpc = Rpc.make(WS_METHODS.pullRequestsChangeBreakdown, {
+  payload: PullRequestRef,
+  success: PullRequestChangeBreakdown,
+  error: PullRequestRpcError,
+});
+
 const WsPullRequestsSetFilesViewedRpc = Rpc.make(WS_METHODS.pullRequestsSetFilesViewed, {
   payload: PullRequestSetFilesViewedInput,
   success: Schema.Void,
@@ -1046,7 +1154,8 @@ const WsPullRequestsSetFilesViewedRpc = Rpc.make(WS_METHODS.pullRequestsSetFiles
 
 const WsPullRequestsRunActionRpc = Rpc.make(WS_METHODS.pullRequestsRunAction, {
   payload: PullRequestActionInput,
-  success: Schema.Void,
+  // Undefined unless asked for with replyWithSummary, or when the host's reply lacked it.
+  success: Schema.UndefinedOr(PullRequestSummary),
   error: PullRequestRpcError,
 });
 
@@ -1111,13 +1220,9 @@ const WsPullRequestsSubscribeRefreshesRpc = Rpc.make(WS_METHODS.pullRequestsSubs
   stream: true,
 });
 
-/**
- * Read on its own rather than as part of the detail: the people who may be asked are only wanted
- * once somebody opens the menu, and reading them with every change request would spend a request
- * per host on a list nobody looked at.
- */
+// Fetch reviewer candidates only when the menu opens to avoid unused host requests.
 const WsPullRequestsReviewerCandidatesRpc = Rpc.make(WS_METHODS.pullRequestsReviewerCandidates, {
-  payload: PullRequestRef,
+  payload: PullRequestReviewerCandidatesInput,
   success: PullRequestReviewerCandidateList,
   error: PullRequestRpcError,
 });
@@ -1152,8 +1257,48 @@ const WsSourceControlCloneRepositoryRpc = Rpc.make(WS_METHODS.sourceControlClone
   error: Schema.Union([SourceControlRepositoryError, EnvironmentAuthorizationError]),
 });
 
-// Clone-backed project creation. `start` returns once the project exists and
-// the clone is running; progress arrives on the subscription.
+// Starts a device-flow sign-in the server finishes on its own, so a client can leave meanwhile.
+const WsSourceControlSignInStartRpc = Rpc.make(WS_METHODS.sourceControlSignInStart, {
+  payload: SourceControlSignInInput,
+  success: SourceControlSignInPrompt,
+  error: Schema.Union([SourceControlSignInError, EnvironmentAuthorizationError]),
+});
+
+// Resolves when the sign-in `signInStart` began ends, however long the user takes.
+const WsSourceControlSignInWaitRpc = Rpc.make(WS_METHODS.sourceControlSignInWait, {
+  payload: SourceControlSignInInput,
+  success: SourceControlSignInResult,
+  error: Schema.Union([SourceControlSignInError, EnvironmentAuthorizationError]),
+});
+
+// Ends the sign-in `signInStart` began, so approving the code afterwards signs nothing in.
+const WsSourceControlSignInCancelRpc = Rpc.make(WS_METHODS.sourceControlSignInCancel, {
+  payload: SourceControlSignInInput,
+  success: Schema.Void,
+  error: Schema.Union([SourceControlSignInError, EnvironmentAuthorizationError]),
+});
+
+const WsSourceControlAppAccessRpc = Rpc.make(WS_METHODS.sourceControlAppAccess, {
+  payload: SourceControlAppAccessInput,
+  success: SourceControlAppAccess,
+  error: EnvironmentAuthorizationError,
+});
+
+// False when the server's forge account has not starred the repository or the forge cannot say.
+const WsSourceControlStarredRpc = Rpc.make(WS_METHODS.sourceControlStarred, {
+  payload: SourceControlStarredInput,
+  success: Schema.Boolean,
+  error: EnvironmentAuthorizationError,
+});
+
+// Stars the repository as the server's forge account. False when the forge refused or cannot star.
+const WsSourceControlStarRpc = Rpc.make(WS_METHODS.sourceControlStar, {
+  payload: SourceControlStarredInput,
+  success: Schema.Boolean,
+  error: EnvironmentAuthorizationError,
+});
+
+// Returns when the project exists and cloning starts; progress uses the subscription.
 const WsProjectCloneStartRpc = Rpc.make(WS_METHODS.projectCloneStart, {
   payload: ProjectCloneStartInput,
   success: ProjectCloneStartResult,
@@ -1207,6 +1352,12 @@ const WsProjectsListEntriesRpc = Rpc.make(WS_METHODS.projectsListEntries, {
   error: Schema.Union([ProjectListEntriesError, EnvironmentAuthorizationError]),
 });
 
+const WsProjectsListIgnoredFilesRpc = Rpc.make(WS_METHODS.projectsListIgnoredFiles, {
+  payload: ProjectListIgnoredFilesInput,
+  success: ProjectListIgnoredFilesResult,
+  error: Schema.Union([ProjectListEntriesError, EnvironmentAuthorizationError]),
+});
+
 const WsProjectsReadFileRpc = Rpc.make(WS_METHODS.projectsReadFile, {
   payload: ProjectReadFileInput,
   success: ProjectReadFileResult,
@@ -1234,6 +1385,12 @@ const WsProjectsEnsureScratchRpc = Rpc.make(WS_METHODS.projectsEnsureScratch, {
 const WsProjectsCreateNewRpc = Rpc.make(WS_METHODS.projectsCreateNew, {
   payload: ProjectCreateNewInput,
   success: ProjectCreateNewResult,
+  error: Schema.Union([OrchestrationDispatchCommandError, EnvironmentAuthorizationError]),
+});
+
+const WsProjectsCreateFromThreadRpc = Rpc.make(WS_METHODS.projectsCreateFromThread, {
+  payload: ProjectCreateFromThreadInput,
+  success: ProjectCreateFromThreadResult,
   error: Schema.Union([OrchestrationDispatchCommandError, EnvironmentAuthorizationError]),
 });
 
@@ -1323,6 +1480,19 @@ const WsProviderUploadFeedbackRpc = Rpc.make(WS_METHODS.providerUploadFeedback, 
   error: Schema.Union([ProviderUploadFeedbackError, EnvironmentAuthorizationError]),
 });
 
+const WsSubscribeVcsBranchRpc = Rpc.make(WS_METHODS.subscribeVcsBranch, {
+  payload: VcsStatusInput,
+  success: VcsBranchStatus,
+  error: Schema.Union([GitManagerServiceError, EnvironmentAuthorizationError]),
+  stream: true,
+});
+
+const WsVcsRefreshBranchRpc = Rpc.make(WS_METHODS.vcsRefreshBranch, {
+  payload: VcsStatusInput,
+  success: Schema.Void,
+  error: Schema.Union([GitManagerServiceError, EnvironmentAuthorizationError]),
+});
+
 const WsSubscribeVcsStatusRpc = Rpc.make(WS_METHODS.subscribeVcsStatus, {
   payload: VcsStatusSubscriptionInput,
   success: VcsStatusStreamEvent,
@@ -1337,7 +1507,10 @@ const WsVcsPullRpc = Rpc.make(WS_METHODS.vcsPull, {
 });
 
 const WsVcsRefreshStatusRpc = Rpc.make(WS_METHODS.vcsRefreshStatus, {
-  payload: VcsStatusInput,
+  payload: Schema.Struct({
+    ...VcsStatusInput.fields,
+    localOnly: Schema.optional(Schema.Boolean),
+  }),
   success: VcsStatusResult,
   error: Schema.Union([GitManagerServiceError, EnvironmentAuthorizationError]),
 });
@@ -1381,9 +1554,7 @@ const WsVcsListRefsRpc = Rpc.make(WS_METHODS.vcsListRefs, {
 });
 
 const WsVcsCreateWorktreeRpc = Rpc.make(WS_METHODS.vcsCreateWorktree, {
-  // Clients cannot choose the folder: new worktrees go in the server's managed
-  // worktrees folder. `path` stays a required null because older servers
-  // require the key.
+  // Worktrees use the managed folder; required null path preserves compatibility with older servers.
   payload: Schema.Struct({ ...VcsCreateWorktreeInput.fields, path: Schema.Null }),
   success: VcsCreateWorktreeResult,
   error: Schema.Union([GitCommandError, EnvironmentAuthorizationError]),
@@ -1409,6 +1580,12 @@ const WsVcsSwitchRefRpc = Rpc.make(WS_METHODS.vcsSwitchRef, {
 const WsVcsInitRpc = Rpc.make(WS_METHODS.vcsInit, {
   payload: VcsInitInput,
   error: Schema.Union([VcsError, EnvironmentAuthorizationError]),
+});
+
+const WsReviewGetBranchCommitsRpc = Rpc.make(WS_METHODS.reviewGetBranchCommits, {
+  payload: ReviewBranchCommitsInput,
+  success: ReviewBranchCommitsResult,
+  error: Schema.Union([ReviewDiffPreviewError, EnvironmentAuthorizationError]),
 });
 
 const WsReviewGetDiffPreviewRpc = Rpc.make(WS_METHODS.reviewGetDiffPreview, {
@@ -1458,12 +1635,6 @@ const WsTerminalClearRpc = Rpc.make(WS_METHODS.terminalClear, {
   error: Schema.Union([TerminalError, EnvironmentAuthorizationError]),
 });
 
-const WsTerminalRestartRpc = Rpc.make(WS_METHODS.terminalRestart, {
-  payload: TerminalRestartInput,
-  success: TerminalSessionSnapshot,
-  error: Schema.Union([TerminalError, EnvironmentAuthorizationError]),
-});
-
 const WsTerminalCloseRpc = Rpc.make(WS_METHODS.terminalClose, {
   payload: TerminalCloseInput,
   error: Schema.Union([TerminalError, EnvironmentAuthorizationError]),
@@ -1471,12 +1642,6 @@ const WsTerminalCloseRpc = Rpc.make(WS_METHODS.terminalClose, {
 
 const WsPreviewOpenRpc = Rpc.make(WS_METHODS.previewOpen, {
   payload: PreviewOpenInput,
-  success: PreviewSessionSnapshot,
-  error: Schema.Union([PreviewError, EnvironmentAuthorizationError]),
-});
-
-const WsPreviewNavigateRpc = Rpc.make(WS_METHODS.previewNavigate, {
-  payload: PreviewNavigateInput,
   success: PreviewSessionSnapshot,
   error: Schema.Union([PreviewError, EnvironmentAuthorizationError]),
 });
@@ -1490,11 +1655,6 @@ const WsPreviewResizeRpc = Rpc.make(WS_METHODS.previewResize, {
 const WsPreviewAdjustRpc = Rpc.make(WS_METHODS.previewAdjust, {
   payload: PreviewAdjustInput,
   success: PreviewSessionSnapshot,
-  error: Schema.Union([PreviewError, EnvironmentAuthorizationError]),
-});
-
-const WsPreviewRefreshRpc = Rpc.make(WS_METHODS.previewRefresh, {
-  payload: PreviewRefreshInput,
   error: Schema.Union([PreviewError, EnvironmentAuthorizationError]),
 });
 
@@ -1531,6 +1691,11 @@ const WsSubscribePreviewEventsRpc = Rpc.make(WS_METHODS.subscribePreviewEvents, 
   stream: true,
 });
 
+const WsPreviewStopLocalServerRpc = Rpc.make(WS_METHODS.previewStopLocalServer, {
+  payload: PreviewStopLocalServerInput,
+  error: Schema.Union([PreviewStopLocalServerError, EnvironmentAuthorizationError]),
+});
+
 const WsSubscribeDiscoveredLocalServersRpc = Rpc.make(WS_METHODS.subscribeDiscoveredLocalServers, {
   payload: Schema.Struct({
     configuredUrls: Schema.optional(ConfiguredLocalServerUrls),
@@ -1544,6 +1709,18 @@ const WsDeviceTestHostRpc = Rpc.make(WS_METHODS.deviceTestHost, {
   payload: SshDeviceHostConfig,
   success: DeviceHostSummary,
   error: Schema.Union([DeviceError, EnvironmentAuthorizationError]),
+});
+
+const WsDeviceEasAccountRpc = Rpc.make(WS_METHODS.deviceEasAccount, {
+  payload: DeviceEasAccountInput,
+  success: DeviceEasAccount,
+  error: Schema.Union([DeviceEasAccountError, EnvironmentAuthorizationError]),
+});
+
+const WsDeviceSimlockIdentityRpc = Rpc.make(WS_METHODS.deviceSimlockIdentity, {
+  payload: DeviceSimlockIdentityInput,
+  success: DeviceSimlockIdentity,
+  error: Schema.Union([DeviceSimlockIdentityError, EnvironmentAuthorizationError]),
 });
 
 const WsDeviceListRpc = Rpc.make(WS_METHODS.deviceList, {
@@ -1631,8 +1808,8 @@ const WsOrchestrationV2SearchThreadStreamRpc = Rpc.make(
 );
 
 const WsOrchestrationV2SearchThreadsRpc = Rpc.make(ORCHESTRATION_V2_WS_METHODS.searchThreads, {
-  payload: OrchestrationSearchThreadsInput,
-  success: OrchestrationSearchThreadsResult,
+  payload: OrchestrationV2SearchThreadsInput,
+  success: OrchestrationV2SearchThreadsResult,
   error: Schema.Union([OrchestrationSearchThreadsError, EnvironmentAuthorizationError]),
 });
 
@@ -1641,6 +1818,45 @@ const WsOrchestrationV2GetArchivedShellSnapshotRpc = Rpc.make(
   {
     payload: OrchestrationV2RpcSchemas.getArchivedShellSnapshot.input,
     success: OrchestrationV2RpcSchemas.getArchivedShellSnapshot.output,
+    error: Schema.Union([OrchestrationV2GetShellSnapshotError, EnvironmentAuthorizationError]),
+  },
+);
+
+const WsOrchestrationV2GetThreadFamilyRpc = Rpc.make(ORCHESTRATION_V2_WS_METHODS.getThreadFamily, {
+  payload: OrchestrationV2RpcSchemas.getThreadFamily.input,
+  success: OrchestrationV2RpcSchemas.getThreadFamily.output,
+  error: Schema.Union([OrchestrationV2GetShellSnapshotError, EnvironmentAuthorizationError]),
+});
+
+const WsOrchestrationV2GetThreadTitlesRpc = Rpc.make(ORCHESTRATION_V2_WS_METHODS.getThreadTitles, {
+  payload: OrchestrationV2RpcSchemas.getThreadTitles.input,
+  success: OrchestrationV2RpcSchemas.getThreadTitles.output,
+  error: Schema.Union([OrchestrationV2GetShellSnapshotError, EnvironmentAuthorizationError]),
+});
+
+const WsOrchestrationV2GetThreadLinkMetadataRpc = Rpc.make(
+  ORCHESTRATION_V2_WS_METHODS.getThreadLinkMetadata,
+  {
+    payload: OrchestrationV2RpcSchemas.getThreadLinkMetadata.input,
+    success: OrchestrationV2RpcSchemas.getThreadLinkMetadata.output,
+    error: Schema.Union([OrchestrationV2GetShellSnapshotError, EnvironmentAuthorizationError]),
+  },
+);
+
+const WsOrchestrationV2GetWorktreeThreadIdsRpc = Rpc.make(
+  ORCHESTRATION_V2_WS_METHODS.getWorktreeThreadIds,
+  {
+    payload: OrchestrationV2RpcSchemas.getWorktreeThreadIds.input,
+    success: OrchestrationV2RpcSchemas.getWorktreeThreadIds.output,
+    error: Schema.Union([OrchestrationV2GetShellSnapshotError, EnvironmentAuthorizationError]),
+  },
+);
+
+const WsOrchestrationV2GetOlderSettledThreadsRpc = Rpc.make(
+  ORCHESTRATION_V2_WS_METHODS.getOlderSettledThreads,
+  {
+    payload: OrchestrationV2RpcSchemas.getOlderSettledThreads.input,
+    success: OrchestrationV2RpcSchemas.getOlderSettledThreads.output,
     error: Schema.Union([OrchestrationV2GetShellSnapshotError, EnvironmentAuthorizationError]),
   },
 );
@@ -1660,12 +1876,27 @@ const WsOrchestrationV2StopWorkflowRpc = Rpc.make(ORCHESTRATION_V2_WS_METHODS.st
   error: Schema.Union([OrchestrationV2StopWorkflowError, EnvironmentAuthorizationError]),
 });
 
+const WsOrchestrationV2ForceStopThreadRpc = Rpc.make(ORCHESTRATION_V2_WS_METHODS.forceStopThread, {
+  payload: OrchestrationV2RpcSchemas.forceStopThread.input,
+  success: OrchestrationV2RpcSchemas.forceStopThread.output,
+  error: Schema.Union([OrchestrationV2ForceStopThreadError, EnvironmentAuthorizationError]),
+});
+
 const WsOrchestrationV2GetWorkflowScriptRpc = Rpc.make(
   ORCHESTRATION_V2_WS_METHODS.getWorkflowScript,
   {
     payload: OrchestrationV2RpcSchemas.getWorkflowScript.input,
     success: OrchestrationV2RpcSchemas.getWorkflowScript.output,
     error: Schema.Union([OrchestrationGetWorkflowScriptError, EnvironmentAuthorizationError]),
+  },
+);
+
+const WsOrchestrationV2GetNativeChildWorkRpc = Rpc.make(
+  ORCHESTRATION_V2_WS_METHODS.getNativeChildWork,
+  {
+    payload: OrchestrationV2RpcSchemas.getNativeChildWork.input,
+    success: OrchestrationV2RpcSchemas.getNativeChildWork.output,
+    error: Schema.Union([OrchestrationV2GetNativeChildWorkError, EnvironmentAuthorizationError]),
   },
 );
 
@@ -1681,16 +1912,6 @@ const WsOrchestrationV2LaunchThreadRpc = Rpc.make(ORCHESTRATION_V2_WS_METHODS.la
   error: Schema.Union([OrchestrationV2ThreadLaunchError, EnvironmentAuthorizationError]),
 });
 
-const WsOrchestrationV2SubscribeArchivedShellRpc = Rpc.make(
-  ORCHESTRATION_V2_WS_METHODS.subscribeArchivedShell,
-  {
-    payload: OrchestrationV2RpcSchemas.subscribeArchivedShell.input,
-    success: OrchestrationV2RpcSchemas.subscribeArchivedShell.output,
-    error: Schema.Union([OrchestrationV2GetShellSnapshotError, EnvironmentAuthorizationError]),
-    stream: true,
-  },
-);
-
 const WsOrchestrationV2SubscribeShellRpc = Rpc.make(ORCHESTRATION_V2_WS_METHODS.subscribeShell, {
   payload: OrchestrationV2RpcSchemas.subscribeShell.input,
   success: OrchestrationV2RpcSchemas.subscribeShell.output,
@@ -1698,10 +1919,24 @@ const WsOrchestrationV2SubscribeShellRpc = Rpc.make(ORCHESTRATION_V2_WS_METHODS.
   stream: true,
 });
 
-const WsOrchestrationV2SubscribeThreadRpc = Rpc.make(ORCHESTRATION_V2_WS_METHODS.subscribeThread, {
+const WsOrchestrationV2SubscribeThreadError = Schema.Union([
+  OrchestrationV2GetThreadProjectionError,
+  EnvironmentAuthorizationError,
+]);
+
+// Spelled out so the published declaration stays within compiler limits (TS7056).
+const WsOrchestrationV2SubscribeThreadRpc: Rpc.Rpc<
+  typeof ORCHESTRATION_V2_WS_METHODS.subscribeThread,
+  typeof OrchestrationV2RpcSchemas.subscribeThread.input,
+  RpcSchema.Stream<
+    typeof OrchestrationV2RpcSchemas.subscribeThread.output,
+    typeof WsOrchestrationV2SubscribeThreadError
+  >,
+  typeof Schema.Never
+> = Rpc.make(ORCHESTRATION_V2_WS_METHODS.subscribeThread, {
   payload: OrchestrationV2RpcSchemas.subscribeThread.input,
   success: OrchestrationV2RpcSchemas.subscribeThread.output,
-  error: Schema.Union([OrchestrationV2GetThreadProjectionError, EnvironmentAuthorizationError]),
+  error: WsOrchestrationV2SubscribeThreadError,
   stream: true,
 });
 
@@ -1715,12 +1950,15 @@ const WsOrchestrationV2SubscribeCommandOutputRpc = Rpc.make(
   },
 );
 
-const WsSubscribeTerminalEventsRpc = Rpc.make(WS_METHODS.subscribeTerminalEvents, {
-  payload: Schema.Struct({}),
-  success: TerminalEvent,
-  error: EnvironmentAuthorizationError,
-  stream: true,
-});
+const WsOrchestrationV2SubscribePromptSuggestionRpc = Rpc.make(
+  ORCHESTRATION_V2_WS_METHODS.subscribePromptSuggestion,
+  {
+    payload: OrchestrationV2RpcSchemas.subscribePromptSuggestion.input,
+    success: OrchestrationV2RpcSchemas.subscribePromptSuggestion.output,
+    error: EnvironmentAuthorizationError,
+    stream: true,
+  },
+);
 
 const WsSubscribeTerminalMetadataRpc = Rpc.make(WS_METHODS.subscribeTerminalMetadata, {
   payload: Schema.Struct({}),
@@ -1731,19 +1969,15 @@ const WsSubscribeTerminalMetadataRpc = Rpc.make(WS_METHODS.subscribeTerminalMeta
 
 export const WsSubscribeServerConfigRpc = Rpc.make(WS_METHODS.subscribeServerConfig, {
   payload: Schema.Struct({
-    /**
-     * Already-shipped clients decode the stream against the old event union and
-     * would die on an unknown member, so the server emits the theme stream only
-     * to subscribers that ask for it.
-     */
+    /** Opt-in protects older clients that reject unknown theme event types. */
     environmentThemes: Schema.optional(Schema.Boolean),
     usageLimitSources: Schema.optional(Schema.Boolean),
-    /**
-     * Whether this client answers `/usage-limits` itself. The server injects
-     * that command into provider catalogs only for such clients; an older
-     * client would send it to the provider as an ordinary prompt.
-     */
+    /** Advertise client handling before the server offers /usage-limits, or older clients send it as a prompt. */
     usageLimitsCommand: Schema.optional(Schema.Boolean),
+    /** Omit per-cwd provider snapshots; the client fetches its cwd through `server.refreshProviders`. */
+    workspaceSnapshotsOnDemand: Schema.optional(Schema.Boolean),
+    /** With on-demand snapshots, also omit machine slash commands and skills a cwd snapshot replaces. */
+    providerCatalogsOnDemand: Schema.optional(Schema.Boolean),
   }),
   success: ServerConfigStreamEvent,
   error: Schema.Union([KeybindingsConfigError, ServerSettingsError, EnvironmentAuthorizationError]),
@@ -1755,12 +1989,6 @@ const WsSubscribeServerLifecycleRpc = Rpc.make(WS_METHODS.subscribeServerLifecyc
   success: ServerLifecycleStreamEvent,
   error: EnvironmentAuthorizationError,
   stream: true,
-});
-
-const WsScheduledTasksListRpc = Rpc.make(WS_METHODS.scheduledTasksList, {
-  payload: ScheduledTaskListInput,
-  success: ScheduledTaskListResult,
-  error: Schema.Union([ScheduledTaskError, EnvironmentAuthorizationError]),
 });
 
 const WsScheduledTasksSubscribeRpc = Rpc.make(WS_METHODS.scheduledTasksSubscribe, {
@@ -1803,6 +2031,12 @@ const WsScheduledTasksRotateWebhookTokenRpc = Rpc.make(
   },
 );
 
+const WsGuestShareCreateRpc = Rpc.make(WS_METHODS.guestShareCreate, {
+  payload: GuestShareCreateInput,
+  success: GuestShareCreateResult,
+  error: Schema.Union([GuestShareCreateError, EnvironmentAuthorizationError]),
+});
+
 const WsSecretsAnswerRequestRpc = Rpc.make(WS_METHODS.secretsAnswerRequest, {
   payload: SecretRequestAnswerInput,
   error: Schema.Union([SecretRequestError, EnvironmentAuthorizationError]),
@@ -1833,13 +2067,6 @@ const WsSubscribeAuthAccessRpc = Rpc.make(WS_METHODS.subscribeAuthAccess, {
   stream: true,
 });
 
-const WsSubscribeBackgroundPolicyRpc = Rpc.make(WS_METHODS.subscribeBackgroundPolicy, {
-  payload: Schema.Struct({}),
-  success: BackgroundPolicySnapshot,
-  error: EnvironmentAuthorizationError,
-  stream: true,
-});
-
 const WsSubscribeResourceTelemetryRpc = Rpc.make(WS_METHODS.subscribeResourceTelemetry, {
   payload: Schema.Struct({}),
   success: ResourceTelemetrySnapshot,
@@ -1854,6 +2081,7 @@ export class RpcScopeAuthorization extends RpcMiddleware.Service<RpcScopeAuthori
 
 // Name the member union so published declarations fit TypeScript serialization limits.
 type WsRpc =
+  | typeof WsGuestShareCreateRpc
   | typeof WsServerProbeRpc
   | typeof WsServerGetConfigRpc
   | typeof WsServerRefreshProvidersRpc
@@ -1864,9 +2092,9 @@ type WsRpc =
   | typeof WsChatGptReconnectProfileRpc
   | typeof WsChatGptImportProfileRpc
   | typeof WsChatGptHandoffSubscribeRpc
-  | typeof WsCodexAuthCallbackSubscribeRpc
   | typeof WsProviderAuthRespondRpc
   | typeof WsProviderAuthCancelRpc
+  | typeof WsProviderAuthRemoveMethodRpc
   | typeof WsProviderAuthLogoutRpc
   | typeof WsProviderAuthSubscribeRpc
   | typeof WsProviderInstallStartRpc
@@ -1874,6 +2102,7 @@ type WsRpc =
   | typeof WsProviderInstallSubscribeRpc
   | typeof WsProviderInstallRemoveRpc
   | typeof WsServerUpdateServerRpc
+  | typeof WsServerGetNpmReleaseRpc
   | typeof WsServerUpdateServerWithProgressRpc
   | typeof WsServerCommitDesktopUpdateRpc
   | typeof WsServerUpsertKeybindingRpc
@@ -1881,8 +2110,12 @@ type WsRpc =
   | typeof WsServerRunStorageCleanupRpc
   | typeof WsServerGetStorageCleanupReportRpc
   | typeof WsServerGetDatabaseStorageRpc
-  | typeof WsServerGetSettingsRpc
+  | typeof WsServerReclaimDatabaseSpaceRpc
   | typeof WsServerUpdateSettingsRpc
+  | typeof WsPeerLinksListRpc
+  | typeof WsPeerLinksLinkRpc
+  | typeof WsPeerLinksUnlinkRpc
+  | typeof WsPeerLinksAnswerRequestRpc
   | typeof WsServerDiscoverSourceControlRpc
   | typeof WsServerSearchAcpRegistryRpc
   | typeof WsServerPrepareAcpRegistryAgentRpc
@@ -1902,10 +2135,11 @@ type WsRpc =
   | typeof WsServerGetResourceTelemetryHistoryRpc
   | typeof WsServerRetryResourceTelemetryRpc
   | typeof WsServerCheckOtlpEndpointRpc
+  | typeof WsServerListTextGeneratorModelsRpc
+  | typeof WsServerPrepareTriageRpc
   | typeof WsServerGetUsageSummaryRpc
   | typeof WsServerRefreshUsageRatesRpc
   | typeof WsServerSignalProcessRpc
-  | typeof WsScheduledTasksListRpc
   | typeof WsScheduledTasksSubscribeRpc
   | typeof WsScheduledTasksUpsertRpc
   | typeof WsScheduledTasksSetEnabledRpc
@@ -1916,12 +2150,11 @@ type WsRpc =
   | typeof WsScheduledTasksListWebhookDeliveriesRpc
   | typeof WsScheduledTasksGetWebhookDeliveryRpc
   | typeof WsServerReportClientActivityRpc
-  | typeof WsServerReportHostPowerStateRpc
-  | typeof WsServerGetBackgroundPolicyRpc
   | typeof WsCloudGetRelayClientStatusRpc
   | typeof WsCloudInstallRelayClientRpc
   | typeof WsPullRequestsListRpc
   | typeof WsPullRequestsListStatsRpc
+  | typeof WsPullRequestsFilterOptionsRpc
   | typeof WsPullRequestsSummaryRpc
   | typeof WsPullRequestsRoutingRpc
   | typeof WsPullRequestsRoutingIdentityRpc
@@ -1936,6 +2169,7 @@ type WsRpc =
   | typeof WsPullRequestsThreadCommentsRpc
   | typeof WsPullRequestsDiffFileContentsRpc
   | typeof WsPullRequestsFilesViewedRpc
+  | typeof WsPullRequestsChangeBreakdownRpc
   | typeof WsPullRequestsSetFilesViewedRpc
   | typeof WsPullRequestsRunActionRpc
   | typeof WsPullRequestsUpdateRpc
@@ -1955,16 +2189,24 @@ type WsRpc =
   | typeof WsSourceControlLookupRepositoryRpc
   | typeof WsSourceControlCloneRepositoryRpc
   | typeof WsSourceControlPublishRepositoryRpc
+  | typeof WsSourceControlSignInStartRpc
+  | typeof WsSourceControlSignInWaitRpc
+  | typeof WsSourceControlSignInCancelRpc
+  | typeof WsSourceControlAppAccessRpc
+  | typeof WsSourceControlStarredRpc
+  | typeof WsSourceControlStarRpc
   | typeof WsProjectCloneStartRpc
   | typeof WsProjectCloneCancelRpc
   | typeof WsProjectCloneRetryRpc
   | typeof WsSubscribeProjectClonesRpc
   | typeof WsProjectsListEntriesRpc
+  | typeof WsProjectsListIgnoredFilesRpc
   | typeof WsProjectsReadFileRpc
   | typeof WsProjectsSearchContentsRpc
   | typeof WsProjectsSearchEntriesRpc
   | typeof WsProjectsEnsureScratchRpc
   | typeof WsProjectsCreateNewRpc
+  | typeof WsProjectsCreateFromThreadRpc
   | typeof WsProjectsWriteFileRpc
   | typeof WsProjectsMutateRpc
   | typeof WsShellOpenInEditorRpc
@@ -1982,6 +2224,8 @@ type WsRpc =
   | typeof WsMcpAppsUpdateModelContextRpc
   | typeof WsProviderUploadFeedbackRpc
   | typeof WsSubscribeVcsStatusRpc
+  | typeof WsSubscribeVcsBranchRpc
+  | typeof WsVcsRefreshBranchRpc
   | typeof WsSubscribeWorktreeSetupRpc
   | typeof WsWorktreeSetupCancelRpc
   | typeof WsVcsPullRpc
@@ -1995,6 +2239,7 @@ type WsRpc =
   | typeof WsVcsCreateRefRpc
   | typeof WsVcsSwitchRefRpc
   | typeof WsVcsInitRpc
+  | typeof WsReviewGetBranchCommitsRpc
   | typeof WsReviewGetDiffPreviewRpc
   | typeof WsReviewGetDiffFileContentsRpc
   | typeof WsTerminalOpenRpc
@@ -2003,25 +2248,24 @@ type WsRpc =
   | typeof WsTerminalWriteRpc
   | typeof WsTerminalResizeRpc
   | typeof WsTerminalClearRpc
-  | typeof WsTerminalRestartRpc
   | typeof WsTerminalCloseRpc
-  | typeof WsSubscribeTerminalEventsRpc
   | typeof WsSubscribeTerminalMetadataRpc
   | typeof WsPreviewOpenRpc
-  | typeof WsPreviewNavigateRpc
   | typeof WsPreviewResizeRpc
   | typeof WsPreviewAdjustRpc
-  | typeof WsPreviewRefreshRpc
   | typeof WsPreviewCloseRpc
   | typeof WsPreviewListRpc
   | typeof WsPreviewClearProfileRpc
   | typeof WsPreviewReportProfilesRpc
   | typeof WsPreviewReportStatusRpc
   | typeof WsSubscribePreviewEventsRpc
+  | typeof WsPreviewStopLocalServerRpc
   | typeof WsSubscribeDiscoveredLocalServersRpc
   | typeof WsDeviceConfigureRpc
   | typeof WsDeviceListRpc
   | typeof WsDeviceTestHostRpc
+  | typeof WsDeviceEasAccountRpc
+  | typeof WsDeviceSimlockIdentityRpc
   | typeof WsDeviceOpenRpc
   | typeof WsDeviceCloseRpc
   | typeof WsDeviceShutdownRpc
@@ -2031,11 +2275,12 @@ type WsRpc =
   | typeof WsSubscribeServerConfigRpc
   | typeof WsSubscribeServerLifecycleRpc
   | typeof WsSubscribeAuthAccessRpc
-  | typeof WsSubscribeBackgroundPolicyRpc
   | typeof WsSubscribeResourceTelemetryRpc
   | typeof WsOrchestrationV2DispatchCommandRpc
   | typeof WsOrchestrationV2GetWorkflowScriptRpc
+  | typeof WsOrchestrationV2GetNativeChildWorkRpc
   | typeof WsOrchestrationV2StopWorkflowRpc
+  | typeof WsOrchestrationV2ForceStopThreadRpc
   | typeof WsOrchestrationV2GetTurnItemRpc
   | typeof WsOrchestrationV2GetTurnDiffRpc
   | typeof WsOrchestrationV2GetFullThreadDiffRpc
@@ -2043,15 +2288,21 @@ type WsRpc =
   | typeof WsOrchestrationV2SearchThreadRpc
   | typeof WsOrchestrationV2SearchThreadStreamRpc
   | typeof WsOrchestrationV2GetArchivedShellSnapshotRpc
+  | typeof WsOrchestrationV2GetThreadFamilyRpc
+  | typeof WsOrchestrationV2GetThreadTitlesRpc
+  | typeof WsOrchestrationV2GetThreadLinkMetadataRpc
+  | typeof WsOrchestrationV2GetWorktreeThreadIdsRpc
+  | typeof WsOrchestrationV2GetOlderSettledThreadsRpc
   | typeof WsOrchestrationV2GetThreadProjectionRpc
   | typeof WsOrchestrationV2LaunchThreadRpc
-  | typeof WsOrchestrationV2SubscribeArchivedShellRpc
   | typeof WsOrchestrationV2SubscribeShellRpc
   | typeof WsOrchestrationV2SubscribeThreadRpc
-  | typeof WsOrchestrationV2SubscribeCommandOutputRpc;
+  | typeof WsOrchestrationV2SubscribeCommandOutputRpc
+  | typeof WsOrchestrationV2SubscribePromptSuggestionRpc;
 
 export const WsRpcGroup: RpcGroup.RpcGroup<Rpc.AddMiddleware<WsRpc, typeof RpcScopeAuthorization>> =
   RpcGroup.make(
+    WsGuestShareCreateRpc,
     WsServerProbeRpc,
     WsServerGetConfigRpc,
     WsServerRefreshProvidersRpc,
@@ -2062,9 +2313,9 @@ export const WsRpcGroup: RpcGroup.RpcGroup<Rpc.AddMiddleware<WsRpc, typeof RpcSc
     WsChatGptReconnectProfileRpc,
     WsChatGptImportProfileRpc,
     WsChatGptHandoffSubscribeRpc,
-    WsCodexAuthCallbackSubscribeRpc,
     WsProviderAuthRespondRpc,
     WsProviderAuthCancelRpc,
+    WsProviderAuthRemoveMethodRpc,
     WsProviderAuthLogoutRpc,
     WsProviderAuthSubscribeRpc,
     WsProviderInstallStartRpc,
@@ -2072,6 +2323,7 @@ export const WsRpcGroup: RpcGroup.RpcGroup<Rpc.AddMiddleware<WsRpc, typeof RpcSc
     WsProviderInstallSubscribeRpc,
     WsProviderInstallRemoveRpc,
     WsServerUpdateServerRpc,
+    WsServerGetNpmReleaseRpc,
     WsServerUpdateServerWithProgressRpc,
     WsServerCommitDesktopUpdateRpc,
     WsServerUpsertKeybindingRpc,
@@ -2079,8 +2331,12 @@ export const WsRpcGroup: RpcGroup.RpcGroup<Rpc.AddMiddleware<WsRpc, typeof RpcSc
     WsServerRunStorageCleanupRpc,
     WsServerGetStorageCleanupReportRpc,
     WsServerGetDatabaseStorageRpc,
-    WsServerGetSettingsRpc,
+    WsServerReclaimDatabaseSpaceRpc,
     WsServerUpdateSettingsRpc,
+    WsPeerLinksListRpc,
+    WsPeerLinksLinkRpc,
+    WsPeerLinksUnlinkRpc,
+    WsPeerLinksAnswerRequestRpc,
     WsServerDiscoverSourceControlRpc,
     WsServerSearchAcpRegistryRpc,
     WsServerPrepareAcpRegistryAgentRpc,
@@ -2100,10 +2356,11 @@ export const WsRpcGroup: RpcGroup.RpcGroup<Rpc.AddMiddleware<WsRpc, typeof RpcSc
     WsServerGetResourceTelemetryHistoryRpc,
     WsServerRetryResourceTelemetryRpc,
     WsServerCheckOtlpEndpointRpc,
+    WsServerListTextGeneratorModelsRpc,
+    WsServerPrepareTriageRpc,
     WsServerGetUsageSummaryRpc,
     WsServerRefreshUsageRatesRpc,
     WsServerSignalProcessRpc,
-    WsScheduledTasksListRpc,
     WsScheduledTasksSubscribeRpc,
     WsScheduledTasksUpsertRpc,
     WsScheduledTasksSetEnabledRpc,
@@ -2114,12 +2371,11 @@ export const WsRpcGroup: RpcGroup.RpcGroup<Rpc.AddMiddleware<WsRpc, typeof RpcSc
     WsScheduledTasksListWebhookDeliveriesRpc,
     WsScheduledTasksGetWebhookDeliveryRpc,
     WsServerReportClientActivityRpc,
-    WsServerReportHostPowerStateRpc,
-    WsServerGetBackgroundPolicyRpc,
     WsCloudGetRelayClientStatusRpc,
     WsCloudInstallRelayClientRpc,
     WsPullRequestsListRpc,
     WsPullRequestsListStatsRpc,
+    WsPullRequestsFilterOptionsRpc,
     WsPullRequestsSummaryRpc,
     WsPullRequestsRoutingRpc,
     WsPullRequestsRoutingIdentityRpc,
@@ -2134,6 +2390,7 @@ export const WsRpcGroup: RpcGroup.RpcGroup<Rpc.AddMiddleware<WsRpc, typeof RpcSc
     WsPullRequestsThreadCommentsRpc,
     WsPullRequestsDiffFileContentsRpc,
     WsPullRequestsFilesViewedRpc,
+    WsPullRequestsChangeBreakdownRpc,
     WsPullRequestsSetFilesViewedRpc,
     WsPullRequestsRunActionRpc,
     WsPullRequestsUpdateRpc,
@@ -2153,16 +2410,24 @@ export const WsRpcGroup: RpcGroup.RpcGroup<Rpc.AddMiddleware<WsRpc, typeof RpcSc
     WsSourceControlLookupRepositoryRpc,
     WsSourceControlCloneRepositoryRpc,
     WsSourceControlPublishRepositoryRpc,
+    WsSourceControlSignInStartRpc,
+    WsSourceControlSignInWaitRpc,
+    WsSourceControlSignInCancelRpc,
+    WsSourceControlAppAccessRpc,
+    WsSourceControlStarredRpc,
+    WsSourceControlStarRpc,
     WsProjectCloneStartRpc,
     WsProjectCloneCancelRpc,
     WsProjectCloneRetryRpc,
     WsSubscribeProjectClonesRpc,
     WsProjectsListEntriesRpc,
+    WsProjectsListIgnoredFilesRpc,
     WsProjectsReadFileRpc,
     WsProjectsSearchContentsRpc,
     WsProjectsSearchEntriesRpc,
     WsProjectsEnsureScratchRpc,
     WsProjectsCreateNewRpc,
+    WsProjectsCreateFromThreadRpc,
     WsProjectsWriteFileRpc,
     WsProjectsMutateRpc,
     WsShellOpenInEditorRpc,
@@ -2180,6 +2445,8 @@ export const WsRpcGroup: RpcGroup.RpcGroup<Rpc.AddMiddleware<WsRpc, typeof RpcSc
     WsMcpAppsUpdateModelContextRpc,
     WsProviderUploadFeedbackRpc,
     WsSubscribeVcsStatusRpc,
+    WsSubscribeVcsBranchRpc,
+    WsVcsRefreshBranchRpc,
     WsSubscribeWorktreeSetupRpc,
     WsWorktreeSetupCancelRpc,
     WsVcsPullRpc,
@@ -2193,6 +2460,7 @@ export const WsRpcGroup: RpcGroup.RpcGroup<Rpc.AddMiddleware<WsRpc, typeof RpcSc
     WsVcsCreateRefRpc,
     WsVcsSwitchRefRpc,
     WsVcsInitRpc,
+    WsReviewGetBranchCommitsRpc,
     WsReviewGetDiffPreviewRpc,
     WsReviewGetDiffFileContentsRpc,
     WsTerminalOpenRpc,
@@ -2201,25 +2469,24 @@ export const WsRpcGroup: RpcGroup.RpcGroup<Rpc.AddMiddleware<WsRpc, typeof RpcSc
     WsTerminalWriteRpc,
     WsTerminalResizeRpc,
     WsTerminalClearRpc,
-    WsTerminalRestartRpc,
     WsTerminalCloseRpc,
-    WsSubscribeTerminalEventsRpc,
     WsSubscribeTerminalMetadataRpc,
     WsPreviewOpenRpc,
-    WsPreviewNavigateRpc,
     WsPreviewResizeRpc,
     WsPreviewAdjustRpc,
-    WsPreviewRefreshRpc,
     WsPreviewCloseRpc,
     WsPreviewListRpc,
     WsPreviewClearProfileRpc,
     WsPreviewReportProfilesRpc,
     WsPreviewReportStatusRpc,
     WsSubscribePreviewEventsRpc,
+    WsPreviewStopLocalServerRpc,
     WsSubscribeDiscoveredLocalServersRpc,
     WsDeviceConfigureRpc,
     WsDeviceListRpc,
     WsDeviceTestHostRpc,
+    WsDeviceEasAccountRpc,
+    WsDeviceSimlockIdentityRpc,
     WsDeviceOpenRpc,
     WsDeviceCloseRpc,
     WsDeviceShutdownRpc,
@@ -2229,11 +2496,12 @@ export const WsRpcGroup: RpcGroup.RpcGroup<Rpc.AddMiddleware<WsRpc, typeof RpcSc
     WsSubscribeServerConfigRpc,
     WsSubscribeServerLifecycleRpc,
     WsSubscribeAuthAccessRpc,
-    WsSubscribeBackgroundPolicyRpc,
     WsSubscribeResourceTelemetryRpc,
     WsOrchestrationV2DispatchCommandRpc,
     WsOrchestrationV2GetWorkflowScriptRpc,
+    WsOrchestrationV2GetNativeChildWorkRpc,
     WsOrchestrationV2StopWorkflowRpc,
+    WsOrchestrationV2ForceStopThreadRpc,
     WsOrchestrationV2GetTurnItemRpc,
     WsOrchestrationV2GetTurnDiffRpc,
     WsOrchestrationV2GetFullThreadDiffRpc,
@@ -2241,10 +2509,15 @@ export const WsRpcGroup: RpcGroup.RpcGroup<Rpc.AddMiddleware<WsRpc, typeof RpcSc
     WsOrchestrationV2SearchThreadRpc,
     WsOrchestrationV2SearchThreadStreamRpc,
     WsOrchestrationV2GetArchivedShellSnapshotRpc,
+    WsOrchestrationV2GetThreadFamilyRpc,
+    WsOrchestrationV2GetThreadTitlesRpc,
+    WsOrchestrationV2GetThreadLinkMetadataRpc,
+    WsOrchestrationV2GetWorktreeThreadIdsRpc,
+    WsOrchestrationV2GetOlderSettledThreadsRpc,
     WsOrchestrationV2GetThreadProjectionRpc,
     WsOrchestrationV2LaunchThreadRpc,
-    WsOrchestrationV2SubscribeArchivedShellRpc,
     WsOrchestrationV2SubscribeShellRpc,
     WsOrchestrationV2SubscribeThreadRpc,
     WsOrchestrationV2SubscribeCommandOutputRpc,
+    WsOrchestrationV2SubscribePromptSuggestionRpc,
   ).middleware(RpcScopeAuthorization);

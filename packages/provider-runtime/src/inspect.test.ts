@@ -52,6 +52,7 @@ createInterface({ input: process.stdin }).on('line', line => {
       if (process.env.PROBE_MODE === 'hang') return;
       return send({ requiresOpenaiAuth: true, account: process.env.PROBE_MODE === 'noauth' ? null : { type: 'chatgpt', email: 'probe@example.test', planType: 'plus' } });
     case 'skills/list': return send({ data: [] });
+    case 'config/read': return send({ config: {}, origins: {} });
     case 'model/list': return send({ data: [], nextCursor: null });
     case 'account/rateLimits/read':
       if (process.env.PROBE_MODE === 'quotaerror') return console.log(JSON.stringify({ id: request.id, error: { code: -32601, message: 'Unavailable' } }));
@@ -115,6 +116,7 @@ describe("inspectProvider", () => {
           [
             "account/rateLimits/read",
             "account/read",
+            "config/read",
             "initialize",
             "initialized",
             "model/list",

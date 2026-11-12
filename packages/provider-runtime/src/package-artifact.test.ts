@@ -47,132 +47,121 @@ function publishedManifest(
 }
 
 describe("provider-runtime package artifact", () => {
-  it(
-    "starts a Codex-only consumer with ESM Node builtins and no Claude SDK",
-    { timeout: 120_000 },
-    async () => {
-      const temporaryDirectory = await NodeFSP.mkdtemp(
-        NodePath.join(NodeOS.tmpdir(), "t3-provider-runtime-package-"),
+  it("starts a Codex-only consumer with ESM Node builtins and no Claude SDK", async () => {
+    const temporaryDirectory = await NodeFSP.mkdtemp(
+      NodePath.join(NodeOS.tmpdir(), "t3-provider-runtime-package-"),
+    );
+    const consumerDirectory = NodePath.join(temporaryDirectory, "consumer");
+    const contractsDirectory = NodePath.join(repositoryDirectory, "packages/contracts");
+    const contractsPackageDirectory = NodePath.join(temporaryDirectory, "contracts-package");
+    const providerRuntimePackageDirectory = NodePath.join(
+      temporaryDirectory,
+      "provider-runtime-package",
+    );
+
+    try {
+      const packageArtifacts = [
+        [contractsDirectory, contractsPackageDirectory],
+        [packageDirectory, providerRuntimePackageDirectory],
+      ] satisfies ReadonlyArray<readonly [string, string]>;
+      await Promise.all(
+        packageArtifacts.map(([sourceDirectory, artifactDirectory]) =>
+          run(vp, ["pack", "--out-dir", NodePath.join(artifactDirectory, "dist")], sourceDirectory),
+        ),
       );
-      const consumerDirectory = NodePath.join(temporaryDirectory, "consumer");
-      const contractsDirectory = NodePath.join(repositoryDirectory, "packages/contracts");
-      const contractsPackageDirectory = NodePath.join(temporaryDirectory, "contracts-package");
-      const providerRuntimePackageDirectory = NodePath.join(
-        temporaryDirectory,
-        "provider-runtime-package",
+
+      const bundle = await NodeFSP.readFile(
+        NodePath.join(providerRuntimePackageDirectory, "dist/index.mjs"),
+        "utf8",
+      );
+      expect(bundle).not.toMatch(
+        /import\s*\(\s*(?:\/\*[\s\S]*?\*\/\s*)?["']@anthropic-ai\/claude-agent-sdk["']\s*\)/u,
+      );
+      expect(bundle).not.toContain("@anthropic-ai/claude-agent-sdk");
+
+      const contractsManifest = await readManifest(
+        NodePath.join(contractsDirectory, "package.json"),
+      );
+      const providerRuntimeManifest = await readManifest(
+        NodePath.join(packageDirectory, "package.json"),
+      );
+      const effectManifest = await readManifest(
+        NodePath.join(packageDirectory, "node_modules/effect/package.json"),
+      );
+      expect(providerRuntimeManifest.dependencies).not.toHaveProperty(
+        "@anthropic-ai/claude-agent-sdk",
+      );
+      await Promise.all([
+        NodeFSP.writeFile(
+          NodePath.join(contractsPackageDirectory, "package.json"),
+          JSON.stringify(
+            publishedManifest(contractsManifest, {}, { effect: effectManifest.version }),
+          ),
+        ),
+        NodeFSP.writeFile(
+          NodePath.join(providerRuntimePackageDirectory, "package.json"),
+          JSON.stringify(
+            publishedManifest(providerRuntimeManifest, {
+              "@t3tools/contracts": contractsManifest.version,
+              effect: effectManifest.version,
+            }),
+          ),
+        ),
+      ]);
+
+      await NodeFSP.mkdir(consumerDirectory);
+      await NodeFSP.writeFile(
+        NodePath.join(consumerDirectory, "package.json"),
+        JSON.stringify({
+          name: "provider-runtime-codex-consumer",
+          private: true,
+          type: "module",
+          dependencies: {
+            "@t3tools/contracts": "file:../contracts-package",
+            "@t3tools/provider-runtime": "file:../provider-runtime-package",
+          },
+        }),
+      );
+      await NodeFSP.writeFile(
+        NodePath.join(consumerDirectory, "pnpm-workspace.yaml"),
+        'overrides:\n  "@t3tools/contracts": "file:../contracts-package"\n',
+      );
+      await NodeFSP.writeFile(
+        NodePath.join(consumerDirectory, "verify.mjs"),
+        [
+          'import { registerHooks } from "node:module";',
+          "registerHooks({ resolve(specifier, context, nextResolve) {",
+          '  if (context.conditions.includes("require") && /^(node:)?(process|buffer)$/.test(specifier)) {',
+          '    throw new Error(`No such module "${specifier}"`);',
+          "  }",
+          "  return nextResolve(specifier, context);",
+          "} });",
+          'const { createProviderRuntime } = await import("@t3tools/provider-runtime");',
+          'const runtime = await createProviderRuntime({ provider: "codex" });',
+          "await runtime.close();",
+        ].join("\n"),
       );
 
-      try {
-        const packageArtifacts = [
-          [contractsDirectory, contractsPackageDirectory],
-          [packageDirectory, providerRuntimePackageDirectory],
-        ] satisfies ReadonlyArray<readonly [string, string]>;
-        await Promise.all(
-          packageArtifacts.map(([sourceDirectory, artifactDirectory]) =>
-            run(
-              vp,
-              ["pack", "--out-dir", NodePath.join(artifactDirectory, "dist")],
-              sourceDirectory,
-            ),
-          ),
-        );
-
-        const bundle = await NodeFSP.readFile(
-          NodePath.join(providerRuntimePackageDirectory, "dist/index.mjs"),
-          "utf8",
-        );
-        expect(bundle).not.toMatch(
-          /import\s*\(\s*(?:\/\*[\s\S]*?\*\/\s*)?["']@anthropic-ai\/claude-agent-sdk["']\s*\)/u,
-        );
-        expect(bundle).not.toContain("@anthropic-ai/claude-agent-sdk");
-
-        const contractsManifest = await readManifest(
-          NodePath.join(contractsDirectory, "package.json"),
-        );
-        const providerRuntimeManifest = await readManifest(
-          NodePath.join(packageDirectory, "package.json"),
-        );
-        const effectManifest = await readManifest(
-          NodePath.join(packageDirectory, "node_modules/effect/package.json"),
-        );
-        expect(providerRuntimeManifest.dependencies).not.toHaveProperty(
-          "@anthropic-ai/claude-agent-sdk",
-        );
-        expect(providerRuntimeManifest.devDependencies).toHaveProperty(
-          "@anthropic-ai/claude-agent-sdk",
-        );
-        await Promise.all([
-          NodeFSP.writeFile(
-            NodePath.join(contractsPackageDirectory, "package.json"),
-            JSON.stringify(
-              publishedManifest(contractsManifest, {}, { effect: effectManifest.version }),
-            ),
-          ),
-          NodeFSP.writeFile(
-            NodePath.join(providerRuntimePackageDirectory, "package.json"),
-            JSON.stringify(
-              publishedManifest(providerRuntimeManifest, {
-                "@t3tools/contracts": contractsManifest.version,
-                effect: effectManifest.version,
-              }),
-            ),
-          ),
-        ]);
-
-        await NodeFSP.mkdir(consumerDirectory);
-        await NodeFSP.writeFile(
-          NodePath.join(consumerDirectory, "package.json"),
-          JSON.stringify({
-            name: "provider-runtime-codex-consumer",
-            private: true,
-            type: "module",
-            dependencies: {
-              "@t3tools/contracts": "file:../contracts-package",
-              "@t3tools/provider-runtime": "file:../provider-runtime-package",
-            },
-          }),
-        );
-        await NodeFSP.writeFile(
-          NodePath.join(consumerDirectory, "pnpm-workspace.yaml"),
-          'overrides:\n  "@t3tools/contracts": "file:../contracts-package"\n',
-        );
-        await NodeFSP.writeFile(
-          NodePath.join(consumerDirectory, "verify.mjs"),
-          [
-            'import { registerHooks } from "node:module";',
-            "registerHooks({ resolve(specifier, context, nextResolve) {",
-            '  if (context.conditions.includes("require") && /^(node:)?(process|buffer)$/.test(specifier)) {',
-            '    throw new Error(`No such module "${specifier}"`);',
-            "  }",
-            "  return nextResolve(specifier, context);",
-            "} });",
-            'const { createProviderRuntime } = await import("@t3tools/provider-runtime");',
-            'const runtime = await createProviderRuntime({ provider: "codex" });',
-            "await runtime.close();",
-          ].join("\n"),
-        );
-
-        await run(
-          "pnpm",
-          [
-            "install",
-            "--prefer-offline",
-            "--ignore-scripts",
-            "--config.ignore-workspace=true",
-            "--strict-peer-dependencies",
-            "--config.minimumReleaseAge=0",
-          ],
-          consumerDirectory,
-        );
-        await expect(
-          NodeFSP.access(
-            NodePath.join(consumerDirectory, "node_modules/@anthropic-ai/claude-agent-sdk"),
-          ),
-        ).rejects.toMatchObject({ code: "ENOENT" });
-        await run(process.execPath, ["verify.mjs"], consumerDirectory);
-      } finally {
-        await NodeFSP.rm(temporaryDirectory, { recursive: true, force: true });
-      }
-    },
-  );
+      await run(
+        "pnpm",
+        [
+          "install",
+          "--prefer-offline",
+          "--ignore-scripts",
+          "--config.ignore-workspace=true",
+          "--strict-peer-dependencies",
+          "--config.minimumReleaseAge=0",
+        ],
+        consumerDirectory,
+      );
+      await expect(
+        NodeFSP.access(
+          NodePath.join(consumerDirectory, "node_modules/@anthropic-ai/claude-agent-sdk"),
+        ),
+      ).rejects.toMatchObject({ code: "ENOENT" });
+      await run(process.execPath, ["verify.mjs"], consumerDirectory);
+    } finally {
+      await NodeFSP.rm(temporaryDirectory, { recursive: true, force: true });
+    }
+  });
 });

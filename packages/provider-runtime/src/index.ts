@@ -3,6 +3,7 @@ import * as NodeFSP from "node:fs/promises";
 import * as NodeOS from "node:os";
 import * as NodePath from "node:path";
 
+import * as NodeCrypto from "@effect/platform-node/NodeCrypto";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import {
   type ApprovalRequestId,
@@ -16,11 +17,7 @@ import {
   ProviderDriverKind,
   ProviderInstanceId,
   ProjectId,
-  type ProviderRuntimeEvent,
   type ProviderSendTurnInput,
-  type ProviderSession,
-  type ProviderSessionStartInput,
-  type ProviderTurnStartResult,
   type ProviderUserInputAnswers,
   type RuntimeMode,
   RuntimeRequestId,
@@ -41,6 +38,8 @@ import * as Stream from "effect/Stream";
 import * as ServerConfig from "../../../apps/server/src/config.ts";
 import * as ClaudeAdapterV2 from "../../../apps/server/src/orchestration-v2/Adapters/ClaudeAdapterV2.ts";
 import * as CodexAdapterV2 from "../../../apps/server/src/orchestration-v2/Adapters/CodexAdapterV2.ts";
+import * as PortScanner from "../../../apps/server/src/preview/PortScanner.ts";
+import * as ProviderInstallationGate from "../../../apps/server/src/provider/ProviderInstallationGate.ts";
 import type {
   ProviderAdapterV2,
   ProviderAdapterV2RuntimePolicy,
@@ -53,6 +52,12 @@ import type { McpProviderSessionConfig } from "../../provider-core/src/server/mc
 import * as ProviderEventLoggers from "../../provider-core/src/server/ProviderEventLoggers.ts";
 // pnpm pack cannot resolve a workspace dependency on the private shared package.
 import * as HostProcess from "../../shared/src/HostProcess.ts";
+import type {
+  ProviderRuntimeEvent,
+  ProviderSession,
+  ProviderSessionStartInput,
+  ProviderTurnStartResult,
+} from "./legacy-contracts.ts";
 import { createLegacyRun, LegacyEventTranslator, type LegacyRun } from "./legacy-events.ts";
 import { createRuntimeModelSelection, withRuntimeModelSelection } from "./model-options.ts";
 import type { ProviderRuntimeSessionStore } from "./session-store.ts";
@@ -232,6 +237,11 @@ export async function createProviderRuntime(
       ProviderEventLoggers.NoOpProviderEventLoggers,
     ),
     Layer.succeed(HostProcess.Environment, environment),
+    NodeCrypto.layerDigest,
+    NodeCrypto.layerSecureRandom,
+    ProviderInstallationGate.layer,
+    // Embedded hosts have no preview surface, so agent port discovery is a no-op.
+    PortScanner.layerTest,
   );
   // Both factories only read services at construction; no provider process starts here.
   const runtime = ManagedRuntime.make(
@@ -264,14 +274,17 @@ export async function createProviderRuntime(
       | CodexAdapterV2.CodexAdapterV2DriverEnv
     > =
       options.provider === "codex"
-        ? CodexAdapterV2.CodexAdapterV2Driver.create({
+        ? CodexAdapterV2.createCodexAdapterV2({
             ...driverInput,
             config: decodeCodexSettings(settings),
           })
-        : ClaudeAdapterV2.ClaudeAdapterV2Driver.create({
-            ...driverInput,
-            config: decodeClaudeSettings(settings),
-          });
+        : ClaudeAdapterV2.createClaudeAdapterV2(
+            {
+              ...driverInput,
+              config: decodeClaudeSettings(settings),
+            },
+            {},
+          );
     adapter = await runtime.runPromise(createAdapter.pipe(Scope.provide(adapterScope)));
     idAllocator = await runtime.runPromise(Effect.service(IdAllocator.IdAllocatorV2));
   } catch (error) {
@@ -680,15 +693,17 @@ export async function createProviderRuntime(
 
 export type {
   ProviderApprovalDecision,
-  ProviderRuntimeEvent,
   ProviderSendTurnInput,
-  ProviderSession,
-  ProviderTurnStartResult,
   ProviderUserInputAnswers,
   RuntimeMode,
   ThreadId,
   TurnId,
 } from "@t3tools/contracts";
+export type {
+  ProviderRuntimeEvent,
+  ProviderSession,
+  ProviderTurnStartResult,
+} from "./legacy-contracts.ts";
 export {
   createSqliteProviderRuntimeSessionStore,
   type ProviderRuntimeSessionStore,
