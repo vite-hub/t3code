@@ -36,6 +36,7 @@ import {
 import * as Schema from "effect/Schema";
 import * as Rpc from "effect/rpc/Rpc";
 import * as RpcGroup from "effect/rpc/RpcGroup";
+import * as RpcSchema from "effect/rpc/RpcSchema";
 import * as RpcMiddleware from "effect/rpc/RpcMiddleware";
 import { NonNegativeInt, TrimmedNonEmptyString } from "./baseSchemas.ts";
 import {
@@ -1918,10 +1919,24 @@ const WsOrchestrationV2SubscribeShellRpc = Rpc.make(ORCHESTRATION_V2_WS_METHODS.
   stream: true,
 });
 
-const WsOrchestrationV2SubscribeThreadRpc = Rpc.make(ORCHESTRATION_V2_WS_METHODS.subscribeThread, {
+const WsOrchestrationV2SubscribeThreadError = Schema.Union([
+  OrchestrationV2GetThreadProjectionError,
+  EnvironmentAuthorizationError,
+]);
+
+// Spelled out so the published declaration stays within compiler limits (TS7056).
+const WsOrchestrationV2SubscribeThreadRpc: Rpc.Rpc<
+  typeof ORCHESTRATION_V2_WS_METHODS.subscribeThread,
+  typeof OrchestrationV2RpcSchemas.subscribeThread.input,
+  RpcSchema.Stream<
+    typeof OrchestrationV2RpcSchemas.subscribeThread.output,
+    typeof WsOrchestrationV2SubscribeThreadError
+  >,
+  typeof Schema.Never
+> = Rpc.make(ORCHESTRATION_V2_WS_METHODS.subscribeThread, {
   payload: OrchestrationV2RpcSchemas.subscribeThread.input,
   success: OrchestrationV2RpcSchemas.subscribeThread.output,
-  error: Schema.Union([OrchestrationV2GetThreadProjectionError, EnvironmentAuthorizationError]),
+  error: WsOrchestrationV2SubscribeThreadError,
   stream: true,
 });
 

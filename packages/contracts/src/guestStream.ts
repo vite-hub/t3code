@@ -29,14 +29,23 @@ export const GuestShareView = Schema.Struct({
 });
 export type GuestShareView = typeof GuestShareView.Type;
 
+// Spelled out so the published declarations stay within compiler limits (TS7056).
+const GuestStreamView = Schema.Struct({ type: Schema.Literal("view"), view: GuestShareView });
+const GuestStreamThread: Schema.Struct<{
+  readonly type: Schema.Literal<"thread">;
+  readonly item: typeof OrchestrationV2ThreadStreamItem;
+}> = Schema.Struct({
+  type: Schema.Literal("thread"),
+  item: OrchestrationV2ThreadStreamItem,
+});
+const GuestStreamEnded = Schema.Struct({ type: Schema.Literal("ended") });
+
 /**
  * The shared thread as the owner's client gets it: `thread` carries the same stream items the
  * owner's thread subscription sends, starting with a snapshot on every (re)connect. `view` is the
  * share itself, sent first and again when it changes.
  */
-export const GuestStreamEvent = Schema.Union([
-  Schema.Struct({ type: Schema.Literal("view"), view: GuestShareView }),
-  Schema.Struct({ type: Schema.Literal("thread"), item: OrchestrationV2ThreadStreamItem }),
-  Schema.Struct({ type: Schema.Literal("ended") }),
-]);
+export const GuestStreamEvent: Schema.Union<
+  readonly [typeof GuestStreamView, typeof GuestStreamThread, typeof GuestStreamEnded]
+> = Schema.Union([GuestStreamView, GuestStreamThread, GuestStreamEnded]);
 export type GuestStreamEvent = typeof GuestStreamEvent.Type;

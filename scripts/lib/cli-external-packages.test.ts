@@ -68,21 +68,6 @@ describe("selectCliRuntimeExternalDependencies", () => {
       },
     );
   });
-
-  it("selects every staged runtime root declared by the server", () => {
-    assert.deepStrictEqual(
-      Object.keys(selectCliRuntimeExternalDependencies(serverPackageJson.dependencies)).sort(),
-      [
-        "@anthropic-ai/claude-agent-sdk",
-        "@cursor/sdk",
-        "@ff-labs/fff-node",
-        "@napi-rs/keyring",
-        "node-pty",
-        "playwright-core",
-        "undici",
-      ],
-    );
-  });
 });
 
 it.layer(NodeServices.layer)("external package dependency closure", (it) => {

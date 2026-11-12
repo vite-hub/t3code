@@ -87,6 +87,12 @@ const ParsedJson = Schema.declare((_: unknown): _ is unknown => true, {
   toCodecJson: () => undefined,
 });
 
+/** Named so published declarations can reference record ID table codecs (TS7056). */
+export type RecordIdTableCodec<S extends Schema.Top> = Schema.decodeTo<
+  Schema.toCodecJson<S>,
+  typeof ParsedJson
+>;
+
 /**
  * Adds the optional ID table to a snapshot-shaped schema. `container` returns the
  * key whose value holds the records, `null` when records sit at the top level, or
@@ -95,7 +101,7 @@ const ParsedJson = Schema.declare((_: unknown): _ is unknown => true, {
 export const withRecordIdTable = <S extends Schema.Top>(
   schema: S,
   container: (value: JsonObject) => string | null | undefined,
-) => {
+): RecordIdTableCodec<S> => {
   const codec = Schema.toCodecJson(schema);
   type Encoded = typeof codec.Encoded;
   return ParsedJson.pipe(

@@ -33,6 +33,7 @@
   "devDependencies": {
     "@effect/vitest": "catalog:",
     "effect": "catalog:",
+    "typescript": "~6.0.3",
     "vite-plus": "catalog:"
   },
   "peerDependencies": {

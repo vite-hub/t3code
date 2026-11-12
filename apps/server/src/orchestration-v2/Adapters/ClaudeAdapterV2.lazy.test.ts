@@ -7,7 +7,7 @@ vi.mock("@anthropic-ai/claude-agent-sdk", () => {
 describe("ClaudeAdapterV2 module loading", () => {
   it("does not load the Claude SDK while importing the adapter", async () => {
     await expect(import("./ClaudeAdapterV2.ts")).resolves.toMatchObject({
-      ClaudeAdapterV2Driver: expect.any(Object),
+      createClaudeAdapterV2: expect.any(Function),
       layerQueryRunner: expect.anything(),
     });
   });

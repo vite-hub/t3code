@@ -1,5 +1,5 @@
 import { OrchestrationMessageContext } from "./composerContext.ts";
-import { withRecordIdTable } from "./orchestrationV2IdTable.ts";
+import { type RecordIdTableCodec, withRecordIdTable } from "./orchestrationV2IdTable.ts";
 import * as DateTime from "effect/DateTime";
 import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
@@ -3982,29 +3982,46 @@ const OrchestrationV2UnknownThreadStreamEvent = Schema.Struct({
   ),
 );
 
-export const OrchestrationV2ThreadStreamItem = withRecordIdTable(
-  Schema.Union([
-    Schema.Struct({
-      kind: Schema.Literal("synchronized"),
-    }),
-    Schema.Struct({
-      kind: Schema.Literal("snapshot"),
-      snapshotSequence: NonNegativeInt,
-      projection: OrchestrationV2ThreadProjection,
-      historyCursor: Schema.optionalKey(Schema.NullOr(TrimmedNonEmptyString)),
-      hasMoreHistory: Schema.optionalKey(Schema.Boolean),
-      latestLocalTurnOrdinal: Schema.optionalKey(Schema.NullOr(NonNegativeInt)),
-      turnItemsOmitLocalVisible: Schema.optionalKey(Schema.Literal(true)),
-      idTable: IdTableMarker,
-    }),
-    Schema.Struct({
-      kind: Schema.Literal("event"),
-      sequence: NonNegativeInt,
-      event: OrchestrationV2DomainEvent,
-    }),
-    OrchestrationV2UnknownThreadStreamEvent,
-  ]),
-  (item) => (item.kind === "snapshot" ? "projection" : undefined),
+// Named members keep the published declaration within compiler limits (TS7056).
+const OrchestrationV2ThreadStreamSynchronized = Schema.Struct({
+  kind: Schema.Literal("synchronized"),
+});
+
+const OrchestrationV2ThreadStreamSnapshot = Schema.Struct({
+  kind: Schema.Literal("snapshot"),
+  snapshotSequence: NonNegativeInt,
+  projection: OrchestrationV2ThreadProjection,
+  historyCursor: Schema.optionalKey(Schema.NullOr(TrimmedNonEmptyString)),
+  hasMoreHistory: Schema.optionalKey(Schema.Boolean),
+  latestLocalTurnOrdinal: Schema.optionalKey(Schema.NullOr(NonNegativeInt)),
+  turnItemsOmitLocalVisible: Schema.optionalKey(Schema.Literal(true)),
+  idTable: IdTableMarker,
+});
+
+const OrchestrationV2ThreadStreamEvent = Schema.Struct({
+  kind: Schema.Literal("event"),
+  sequence: NonNegativeInt,
+  event: OrchestrationV2DomainEvent,
+});
+
+const OrchestrationV2ThreadStreamItemUnion: Schema.Union<
+  readonly [
+    typeof OrchestrationV2ThreadStreamSynchronized,
+    typeof OrchestrationV2ThreadStreamSnapshot,
+    typeof OrchestrationV2ThreadStreamEvent,
+    typeof OrchestrationV2UnknownThreadStreamEvent,
+  ]
+> = Schema.Union([
+  OrchestrationV2ThreadStreamSynchronized,
+  OrchestrationV2ThreadStreamSnapshot,
+  OrchestrationV2ThreadStreamEvent,
+  OrchestrationV2UnknownThreadStreamEvent,
+]);
+
+export const OrchestrationV2ThreadStreamItem: RecordIdTableCodec<
+  typeof OrchestrationV2ThreadStreamItemUnion
+> = withRecordIdTable(OrchestrationV2ThreadStreamItemUnion, (item) =>
+  item.kind === "snapshot" ? "projection" : undefined,
 );
 export type OrchestrationV2ThreadStreamItem = typeof OrchestrationV2ThreadStreamItem.Type;
 
@@ -4325,6 +4342,26 @@ export const OrchestrationV2RpcSchemas: {
     readonly input: Schema.Struct<{}>;
     readonly output: typeof OrchestrationV2ArchivedShellSnapshot;
   };
+  readonly getThreadFamily: {
+    readonly input: typeof OrchestrationV2GetThreadFamilyInput;
+    readonly output: typeof OrchestrationV2ThreadFamily;
+  };
+  readonly getThreadTitles: {
+    readonly input: typeof OrchestrationV2GetThreadTitlesInput;
+    readonly output: typeof OrchestrationV2ThreadTitles;
+  };
+  readonly getThreadLinkMetadata: {
+    readonly input: typeof OrchestrationV2GetThreadTitlesInput;
+    readonly output: Schema.$Record<typeof ThreadId, typeof OrchestrationV2ThreadLinkMetadata>;
+  };
+  readonly getWorktreeThreadIds: {
+    readonly input: typeof OrchestrationV2GetWorktreeThreadIdsInput;
+    readonly output: typeof OrchestrationV2WorktreeThreadIds;
+  };
+  readonly getOlderSettledThreads: {
+    readonly input: typeof OrchestrationV2GetOlderSettledThreadsInput;
+    readonly output: typeof OrchestrationV2OlderSettledThreadsPage;
+  };
   readonly getThreadProjection: {
     readonly input: typeof OrchestrationV2GetThreadProjectionInput;
     readonly output: typeof OrchestrationV2ThreadProjection;
@@ -4333,9 +4370,17 @@ export const OrchestrationV2RpcSchemas: {
     readonly input: typeof OrchestrationV2StopWorkflowInput;
     readonly output: typeof Schema.Void;
   };
+  readonly forceStopThread: {
+    readonly input: typeof OrchestrationV2ForceStopThreadInput;
+    readonly output: typeof OrchestrationV2ForceStopThreadResult;
+  };
   readonly getWorkflowScript: {
     readonly input: typeof OrchestrationV2GetWorkflowScriptInput;
     readonly output: typeof OrchestrationV2GetWorkflowScriptResult;
+  };
+  readonly getNativeChildWork: {
+    readonly input: typeof OrchestrationV2GetNativeChildWorkInput;
+    readonly output: typeof OrchestrationV2GetNativeChildWorkResult;
   };
   readonly getTurnItem: {
     readonly input: typeof OrchestrationV2GetTurnItemInput;
@@ -4344,10 +4389,6 @@ export const OrchestrationV2RpcSchemas: {
   readonly launchThread: {
     readonly input: typeof OrchestrationV2ThreadLaunchInput;
     readonly output: typeof OrchestrationV2ThreadLaunchResult;
-  };
-  readonly subscribeArchivedShell: {
-    readonly input: Schema.Struct<{}>;
-    readonly output: typeof OrchestrationV2ArchivedShellStreamItem;
   };
   readonly subscribeShell: {
     readonly input: typeof OrchestrationV2SubscribeShellInput;
@@ -4360,6 +4401,10 @@ export const OrchestrationV2RpcSchemas: {
   readonly subscribeCommandOutput: {
     readonly input: typeof OrchestrationV2SubscribeCommandOutputInput;
     readonly output: typeof OrchestrationV2CommandOutputFrame;
+  };
+  readonly subscribePromptSuggestion: {
+    readonly input: typeof OrchestrationV2SubscribePromptSuggestionInput;
+    readonly output: typeof OrchestrationV2PromptSuggestion;
   };
 } = {
   searchThread: {
