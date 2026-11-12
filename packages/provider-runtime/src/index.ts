@@ -60,6 +60,7 @@ import type {
 } from "./legacy-contracts.ts";
 import { createLegacyRun, LegacyEventTranslator, type LegacyRun } from "./legacy-events.ts";
 import { createRuntimeModelSelection, withRuntimeModelSelection } from "./model-options.ts";
+import { sessionRuntimePolicy } from "./runtime-policy.ts";
 import type { ProviderRuntimeSessionStore } from "./session-store.ts";
 
 export {
@@ -84,6 +85,12 @@ export interface ProviderRuntimeStartInput extends Omit<
   readonly model?: string;
   readonly modelOptions?: Readonly<Record<string, string | boolean>>;
   readonly runtimeMode?: RuntimeMode;
+  /**
+   * Native sandbox policy for every turn, such as Codex
+   * `{ type: "workspaceWrite", networkAccess: true, writableRoots: [...] }`.
+   * Replaces the sandbox that `runtimeMode` selects.
+   */
+  readonly sandboxPolicy?: unknown;
 }
 
 export interface CreateProviderRuntimeOptions {
@@ -549,8 +556,7 @@ export async function createProviderRuntime(
     },
     async startSession(startInput) {
       assertOpen();
-      const { mcp, model, modelOptions, runtimeMode, ...sessionInput } = startInput;
-      const threadId = sessionInput.threadId;
+      const { mcp, model, modelOptions, threadId } = startInput;
       if (sessions.has(threadId)) {
         throw new Error(`T3 provider session ${JSON.stringify(threadId)} already exists.`);
       }
@@ -559,14 +565,7 @@ export async function createProviderRuntime(
         model ?? DEFAULT_PROVIDER_RUNTIME_MODELS[options.provider],
         modelOptions,
       );
-      const runtimePolicy: ProviderAdapterV2RuntimePolicy = {
-        runtimeMode: runtimeMode ?? "full-access",
-        interactionMode: "default",
-        cwd: sessionInput.cwd ?? cwd,
-        ...(sessionInput.approvalPolicy === undefined
-          ? {}
-          : { approvalPolicy: sessionInput.approvalPolicy }),
-      };
+      const runtimePolicy = sessionRuntimePolicy(startInput, cwd);
       const providerSessionId = await run(
         idAllocator.allocate.providerSession({ providerInstanceId: identity.instanceId, threadId }),
       );
@@ -591,7 +590,7 @@ export async function createProviderRuntime(
             .pipe(Scope.provide(scope)),
         );
         const persistedCursor =
-          sessionInput.resumeCursor ?? (await options.sessionStore?.get(threadId));
+          startInput.resumeCursor ?? (await options.sessionStore?.get(threadId));
         const resumeThread = Option.getOrUndefined(
           decodeResumeCursor(persistedCursor),
         )?.providerThread;
