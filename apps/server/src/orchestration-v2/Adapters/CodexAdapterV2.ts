@@ -7247,7 +7247,9 @@ export const makeCodexAdapterV2 = Effect.fn("makeCodexAdapterV2")(function* (
               codexInput,
               runtimePolicy: turnInput.runtimePolicy,
               modelSelection: turnInput.modelSelection,
-              hasT3Mcp: mcpSession !== undefined,
+              // Sessions the app issues always carry `orchestration`. An embedder's own MCP
+              // server (provider-runtime) has none of T3's tools, so its turns skip T3's context.
+              hasT3Mcp: mcpSession?.capabilities?.has("orchestration") === true,
               browserToolsAvailable: mcpSession?.browserToolsAvailable ?? true,
               deviceToolsAvailable: mcpSession?.capabilities?.has("device") ?? false,
               omitServiceTier: adapterOptions.resolveRuntime !== undefined,
