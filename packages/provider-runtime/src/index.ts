@@ -91,6 +91,13 @@ export interface ProviderRuntimeStartInput extends Omit<
    * Replaces the sandbox that `runtimeMode` selects.
    */
   readonly sandboxPolicy?: unknown;
+  /**
+   * Absolute skill folders that Codex loads in addition to its own roots, such
+   * as a per-session folder outside the checkout. Each folder holds one
+   * directory per skill. Claude Code reads skills from `--add-dir` directories
+   * instead, so a Claude session rejects this option.
+   */
+  readonly skillRoots?: ReadonlyArray<string>;
 }
 
 export interface CreateProviderRuntimeOptions {
@@ -556,7 +563,10 @@ export async function createProviderRuntime(
     },
     async startSession(startInput) {
       assertOpen();
-      const { mcp, model, modelOptions, threadId } = startInput;
+      const { mcp, model, modelOptions, skillRoots, threadId } = startInput;
+      if (skillRoots !== undefined && options.provider !== "codex") {
+        throw new Error("T3 provider skillRoots are supported only for Codex sessions.");
+      }
       if (sessions.has(threadId)) {
         throw new Error(`T3 provider session ${JSON.stringify(threadId)} already exists.`);
       }
@@ -586,7 +596,13 @@ export async function createProviderRuntime(
       try {
         const sessionRuntime = await run(
           adapter
-            .openSession({ threadId, providerSessionId, modelSelection, runtimePolicy })
+            .openSession({
+              threadId,
+              providerSessionId,
+              modelSelection,
+              runtimePolicy,
+              ...(skillRoots === undefined ? {} : { skillRoots }),
+            })
             .pipe(Scope.provide(scope)),
         );
         const persistedCursor =

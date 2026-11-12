@@ -511,6 +511,11 @@ export interface ProviderAdapterV2OpenSessionInput {
   readonly resumeFromSession?: OrchestrationV2ProviderSession;
   readonly initialNativeThreadId?: string;
   readonly initialProviderItemIdentityVersion?: 2;
+  /**
+   * Absolute directories of skill folders the provider loads in addition to its
+   * own roots. Only Codex supports them.
+   */
+  readonly skillRoots?: ReadonlyArray<string>;
 }
 
 export interface ProviderAdapterV2EnsureThreadInput {

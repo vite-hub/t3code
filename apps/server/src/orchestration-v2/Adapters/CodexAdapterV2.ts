@@ -1870,6 +1870,11 @@ export const makeCodexAdapterV2 = Effect.fn("makeCodexAdapterV2")(function* (
               });
             }
             yield* client.notify("initialized", undefined);
+            // Codex has no config key for extra skill roots. Set them before the
+            // first thread starts so its skill list includes them.
+            if (input.skillRoots !== undefined && input.skillRoots.length > 0) {
+              yield* client.request("skills/extraRoots/set", { extraRoots: input.skillRoots });
+            }
             yield* Ref.set(initialized, true);
           }),
         );
