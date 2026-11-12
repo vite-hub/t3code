@@ -636,7 +636,6 @@ it.layer(NodeServices.layer)("build-desktop-artifact", (it) => {
       }),
       {
         "@cursor/sdk": "1.0.22",
-        "@anthropic-ai/claude-agent-sdk": "^0.3.170",
         "@ff-labs/fff-node": "0.9.4",
         "node-pty": "1.1.0",
         "@napi-rs/keyring": "1.3.0",

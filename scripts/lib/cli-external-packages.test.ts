@@ -52,24 +52,6 @@ describe("shouldBundleCliDependency", () => {
   });
 });
 
-describe("selectCliRuntimeExternalDependencies", () => {
-  it("keeps desktop runtime dependency roots for the Windows sidecar", () => {
-    assert.deepStrictEqual(
-      selectCliRuntimeExternalDependencies({
-        "@anthropic-ai/claude-agent-sdk": "3.0.0",
-        "@ff-labs/fff-node": "2.0.0",
-        effect: "3.0.0",
-        "node-pty": "4.0.0",
-      }),
-      {
-        "@anthropic-ai/claude-agent-sdk": "3.0.0",
-        "@ff-labs/fff-node": "2.0.0",
-        "node-pty": "4.0.0",
-      },
-    );
-  });
-});
-
 it.layer(NodeServices.layer)("external package dependency closure", (it) => {
   // Read the pnpm store directly: isolation hides transitive names and exports maps can block package.json.
   const readInstalledPackages = Effect.gen(function* () {

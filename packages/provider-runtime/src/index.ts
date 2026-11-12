@@ -36,7 +36,6 @@ import * as Scope from "effect/Scope";
 import * as Stream from "effect/Stream";
 
 import * as ServerConfig from "../../../apps/server/src/config.ts";
-import * as ClaudeAdapterV2 from "../../../apps/server/src/orchestration-v2/Adapters/ClaudeAdapterV2.ts";
 import * as CodexAdapterV2 from "../../../apps/server/src/orchestration-v2/Adapters/CodexAdapterV2.ts";
 import * as PortScanner from "../../../apps/server/src/preview/PortScanner.ts";
 import * as ProviderInstallationGate from "../../../apps/server/src/provider/ProviderInstallationGate.ts";
@@ -257,55 +256,65 @@ export async function createProviderRuntime(
     // Embedded hosts have no preview surface, so agent port discovery is a no-op.
     PortScanner.layerTest,
   );
-  // Both factories only read services at construction; no provider process starts here.
-  const runtime = ManagedRuntime.make(
-    Layer.mergeAll(
-      ClaudeAdapterV2.layerQueryRunner,
-      CodexAdapterV2.layerAppServerClientFactory,
-    ).pipe(Layer.provideMerge(infrastructure)),
-  );
-
   const removeOwnedState = async () => {
     if (ownsStateDirectory) await NodeFSP.rm(stateDirectory, { force: true, recursive: true });
   };
 
-  let adapterScope: Scope.Closeable;
-  let adapter: ProviderAdapterV2Shape;
-  let idAllocator: IdAllocator.IdAllocatorV2["Service"];
-  try {
-    adapterScope = await runtime.runPromise(Scope.make());
-    const driverInput = {
-      instanceId: identity.instanceId,
-      displayName: undefined,
-      environment: [],
-      enabled: true,
-    };
-    const createAdapter: Effect.Effect<
+  const driverInput = {
+    instanceId: identity.instanceId,
+    displayName: undefined,
+    environment: [],
+    enabled: true,
+  };
+  // The factory only reads services at construction; no provider process starts here.
+  const openAdapter = async <R>(
+    providerLayer: Layer.Layer<R, never, Layer.Success<typeof infrastructure>>,
+    createAdapter: Effect.Effect<
       ProviderAdapterV2Shape,
       ProviderAdapterDriverCreateError,
-      | Scope.Scope
-      | ClaudeAdapterV2.ClaudeAdapterV2DriverEnv
-      | CodexAdapterV2.CodexAdapterV2DriverEnv
-    > =
-      options.provider === "codex"
-        ? CodexAdapterV2.createCodexAdapterV2({
+      Scope.Scope | R | Layer.Success<typeof infrastructure>
+    >,
+  ) => {
+    const runtime = ManagedRuntime.make(providerLayer.pipe(Layer.provideMerge(infrastructure)));
+    try {
+      const adapterScope = await runtime.runPromise(Scope.make());
+      const adapter = await runtime.runPromise(createAdapter.pipe(Scope.provide(adapterScope)));
+      const idAllocator = await runtime.runPromise(Effect.service(IdAllocator.IdAllocatorV2));
+      return {
+        runtime: runtime as ManagedRuntime.ManagedRuntime<
+          Layer.Success<typeof infrastructure>,
+          Layer.Error<typeof infrastructure>
+        >,
+        adapterScope,
+        adapter,
+        idAllocator,
+      };
+    } catch (error) {
+      await runtime.dispose();
+      await removeOwnedState();
+      throw error;
+    }
+  };
+  // Claude and its SDK load only for Claude runtimes, so Codex hosts don't need the SDK.
+  const { runtime, adapterScope, adapter, idAllocator } =
+    options.provider === "codex"
+      ? await openAdapter(
+          CodexAdapterV2.layerAppServerClientFactory,
+          CodexAdapterV2.createCodexAdapterV2({
             ...driverInput,
             config: decodeCodexSettings(settings),
-          })
-        : ClaudeAdapterV2.createClaudeAdapterV2(
-            {
-              ...driverInput,
-              config: decodeClaudeSettings(settings),
-            },
-            {},
-          );
-    adapter = await runtime.runPromise(createAdapter.pipe(Scope.provide(adapterScope)));
-    idAllocator = await runtime.runPromise(Effect.service(IdAllocator.IdAllocatorV2));
-  } catch (error) {
-    await runtime.dispose();
-    await removeOwnedState();
-    throw error;
-  }
+          }),
+        )
+      : await import("../../../apps/server/src/orchestration-v2/Adapters/ClaudeAdapterV2.ts").then(
+          (ClaudeAdapterV2) =>
+            openAdapter(
+              ClaudeAdapterV2.layerQueryRunner,
+              ClaudeAdapterV2.createClaudeAdapterV2(
+                { ...driverInput, config: decodeClaudeSettings(settings) },
+                {},
+              ),
+            ),
+        );
 
   const events = new AsyncEventQueue<ProviderRuntimeEvent>();
   const sessions = new Map<ThreadId, EmbeddedSession>();

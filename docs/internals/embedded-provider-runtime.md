@@ -65,9 +65,6 @@ A conflict or failed check leaves remote `main` unchanged.
 
 Keep fork adaptations localized. Current upstream-file changes:
 
-- `ClaudeAdapterV2.ts` and `ClaudeProvider.ts` load `@anthropic-ai/claude-agent-sdk`
-  through `Drivers/ClaudeSdk.ts` on first use, so Codex-only hosts do not install
-  it. `ClaudeAdapterV2.lazy.test.ts` guards the import graph.
 - `packages/contracts` publishes declaration files. `OrchestrationV2RpcSchemas`,
   `WsRpcGroup`, the subscribe-thread RPC, `OrchestrationV2ThreadStreamItem`, and
   `GuestStreamEvent` carry explicit type annotations because their inferred
@@ -76,9 +73,12 @@ Keep fork adaptations localized. Current upstream-file changes:
   `packages/provider-runtime` keep TypeScript 6 as a devDependency for `vp pack`.
   `CodexInstallationService` and `CodexAppServerClientRaw` are exported so the
   runtime bundle can name them.
-- `scripts/lib/cli-external-packages.ts` stages the Claude SDK and its required
-  peers in desktop artifacts because the computed import hides them from the
-  bundler. `apps/server` lists those peers so the stage can install them.
+
+The runtime loads `ClaudeAdapterV2.ts` and `ClaudeProvider.ts` with `import()`
+only for Claude, so the bundle keeps them and `@anthropic-ai/claude-agent-sdk` in
+a separate chunk and Codex-only hosts never install the SDK. Keep every other
+runtime import free of Claude modules. The packed-artifact test starts a
+Codex-only consumer without the SDK to check this.
 
 The legacy `ProviderRuntimeEvent`, `ProviderSession`, and
 `ProviderTurnStartResult` contracts live in

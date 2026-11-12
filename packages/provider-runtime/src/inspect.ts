@@ -4,10 +4,6 @@ import { ClaudeSettings, CodexSettings, type ServerProvider } from "@t3tools/con
 import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
 
-import {
-  checkClaudeProviderStatus,
-  probeClaudeCapabilities,
-} from "../../../apps/server/src/provider/ClaudeProvider.ts";
 import { checkCodexProviderStatus } from "../../../apps/server/src/provider/CodexProvider.ts";
 import type { ProviderRuntimeKind } from "./index.ts";
 
@@ -36,16 +32,20 @@ export async function inspectProvider(
   options: InspectProviderOptions,
 ): Promise<ProviderInspection> {
   const settings = options.settings ?? {};
+  // Claude and its SDK load only for Claude probes, so Codex hosts don't need the SDK.
   const probe =
     options.provider === "codex"
       ? checkCodexProviderStatus(decodeCodexSettings(settings), undefined, options.environment)
-      : checkClaudeProviderStatus(
-          decodeClaudeSettings(settings),
-          (claudeSettings) =>
-            probeClaudeCapabilities(claudeSettings, options.environment).pipe(
-              Effect.provide(NodeServices.layer),
+      : await import("../../../apps/server/src/provider/ClaudeProvider.ts").then(
+          ({ checkClaudeProviderStatus, probeClaudeCapabilities }) =>
+            checkClaudeProviderStatus(
+              decodeClaudeSettings(settings),
+              (claudeSettings) =>
+                probeClaudeCapabilities(claudeSettings, options.environment).pipe(
+                  Effect.provide(NodeServices.layer),
+                ),
+              options.environment,
             ),
-          options.environment,
         );
   const snapshot = await Effect.runPromise(probe.pipe(Effect.provide(NodeServices.layer)), {
     signal: options.signal,
