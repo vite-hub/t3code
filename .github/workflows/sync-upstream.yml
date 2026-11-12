@@ -87,6 +87,8 @@ jobs:
 
       - name: Advance verified fork
         if: steps.sync.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: git push origin HEAD:main
 
       - name: Publish updated packages
