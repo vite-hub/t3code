@@ -57,7 +57,6 @@ import {
   dynamicToolTitle,
 } from "@t3tools/shared/toolActivity";
 import { getModelSelectionStringOptionValue, modelSelectionsEqual } from "@t3tools/shared/model";
-import { appendGeneratedImageEmbeds } from "@t3tools/shared/generatedImageMarkdown";
 import { parseSemver } from "@t3tools/shared/semver";
 import { resolveSpawnCommand } from "@t3tools/shared/shell";
 import { mcpToolResultOutput } from "@t3tools/shared/toolOutput";
@@ -7240,6 +7239,10 @@ export const makeCodexAdapterV2 = Effect.fn("makeCodexAdapterV2")(function* (
             const state = imageTurns.get(nativeTurnId);
             const firstImageItemId = state?.saved.keys().next().value;
             if (state === undefined || firstImageItemId === undefined) return;
+            // Loaded on the first generated image: its Markdown parser is a large part of a bundle that embeds this adapter.
+            const { appendGeneratedImageEmbeds } = yield* Effect.promise(
+              () => import("@t3tools/shared/generatedImageMarkdown"),
+            );
             const finalAnswer = state.answer;
             const text = appendGeneratedImageEmbeds(finalAnswer?.text ?? "", state.saved.values());
             if (text === (finalAnswer?.text ?? "")) {

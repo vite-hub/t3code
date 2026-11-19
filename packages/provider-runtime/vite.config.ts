@@ -33,12 +33,35 @@ function listDeclarationFiles(): Set<string> {
  */
 let declarationsBeforeBuild = new Set<string>();
 
+const serverSettings = NodePath.join(repositoryRoot, "apps/server/src/serverSettings.ts");
+const serverSettingsKey = NodePath.join(import.meta.dirname, "src/server-settings-key.ts");
+const markdownMath = NodePath.join(repositoryRoot, "packages/shared/src/markdownMath.ts");
+
+/**
+ * Keeps server code the runtime never runs out of the bundle: the settings store (every
+ * source-control driver and Undici) becomes its service key, and the math parser, which builds
+ * a remark pipeline at load for a module Codex reads one regex from, stays out unless called.
+ */
+const runtimeOnly = {
+  name: "provider-runtime:runtime-only",
+  resolveId(source: string, importer: string | undefined) {
+    if (!importer || !source.endsWith(".ts")) return null;
+    const resolved = NodePath.resolve(NodePath.dirname(importer), source);
+    if (resolved === serverSettings) return serverSettingsKey;
+    if (resolved === markdownMath) return { id: resolved, moduleSideEffects: false };
+    return null;
+  },
+};
+
 export default defineConfig({
   pack: {
     entry: ["src/index.ts"],
     outDir: "dist",
     // Workers accept these Node builtins through ESM, but not createRequire.
-    plugins: [esmExternalRequirePlugin({ external: [/^(node:)?(?:process|buffer)$/] })],
+    plugins: [
+      esmExternalRequirePlugin({ external: [/^(node:)?(?:process|buffer)$/] }),
+      runtimeOnly,
+    ],
     hooks: {
       "build:prepare": () => {
         declarationsBeforeBuild = listDeclarationFiles();
