@@ -60,7 +60,6 @@ export function PreviewFileNotShown({
 
 export function PreviewUnreachable({ threadRef, url, code, description, onReload, move }: Props) {
   const [showDetails, setShowDetails] = useState(false);
-  const [sentToThread, setSentToThread] = useState(false);
   const host = safeHost(url) ?? url;
   const friendly = describePreviewError(description);
   const errorLabel = previewErrorLabel(code, description);
@@ -94,7 +93,7 @@ export function PreviewUnreachable({ threadRef, url, code, description, onReload
           {errorLabel}
         </div>
 
-        <div className="mt-auto flex items-center gap-2 pt-8">
+        <div className="mt-auto flex flex-wrap items-center gap-2 pt-8">
           <Button
             type="button"
             variant="outline"
@@ -108,14 +107,13 @@ export function PreviewUnreachable({ threadRef, url, code, description, onReload
             type="button"
             variant="outline"
             size="sm"
-            onClick={() => {
+            onClick={() =>
               writeHandoffToComposer(threadRef, {
                 prompt: formatPreviewErrorReport({ url, code, description }),
-              });
-              setSentToThread(true);
-            }}
+              })
+            }
           >
-            {sentToThread ? "In the composer" : "Send to thread"}
+            Send to thread
           </Button>
           {move ? (
             <Button type="button" variant="outline" size="sm" onClick={move.onMove}>
