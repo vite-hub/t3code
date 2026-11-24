@@ -176,7 +176,7 @@ export function HostedBrowserWebview(props: {
   useEffect(() => {
     const webview = webviewRef.current;
     const bridge = previewBridge;
-    if (!clientSettingsHydrated || !webview || !config || !bridge) return;
+    if (asleep || !clientSettingsHydrated || !webview || !config || !bridge) return;
     let disposed = false;
     let recoveryTimeout: ReturnType<typeof setTimeout> | null = null;
     const register = () => {
@@ -225,6 +225,7 @@ export function HostedBrowserWebview(props: {
       webview.removeEventListener("focus", dismissHostPopups);
     };
   }, [
+    asleep,
     clientSettingsHydrated,
     config,
     runtimeTabId,
