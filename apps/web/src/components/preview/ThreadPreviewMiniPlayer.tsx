@@ -330,7 +330,7 @@ function BrowserMiniPlayer({ threadRef, tabId, miniPlayer }: Props & { readonly 
                 )
               }
               onPopup={(popupTabId) => showPreviewPopup(threadRef, popupTabId, "floating")}
-              className="size-full"
+              className={cn("size-full", loadFailed && !loadFailed.download && "invisible")}
             />
             {loadFailed && !loadFailed.download ? (
               <div className="absolute inset-0 z-10">
