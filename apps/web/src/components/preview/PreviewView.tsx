@@ -329,8 +329,14 @@ export function PreviewView({
   };
 
   const handleRefresh = () => {
-    if (isServerTab) serverSurfaceRef.current?.reload();
-    else if (previewBridge && runtimeTabId) void previewBridge.refresh(runtimeTabId);
+    if (isServerTab) {
+      serverSurfaceRef.current?.reload();
+      return;
+    }
+    if (!previewBridge || !runtimeTabId) return;
+    // The error view hides the guest, so it may have slept; navigating loads the URL once it wakes.
+    if (isUnreachable) void previewBridge.navigate(runtimeTabId, url);
+    else void previewBridge.refresh(runtimeTabId);
   };
 
   const adjustServerTab = async (change: Omit<PreviewAdjustInput, "threadId" | "tabId">) => {

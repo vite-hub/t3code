@@ -57,7 +57,9 @@ import {
 } from "~/hooks/useSettings";
 import { reconcilePreviewServerSessions, resetPreviewStateForTests } from "~/previewStateStore";
 import { AppAtomRegistryProvider } from "~/rpc/atomRegistry";
+import { acquireBrowserSurface } from "./browserSurfaceStore";
 import { ElectronBrowserHost } from "./ElectronBrowserHost";
+import { PREVIEW_SLEEP_DELAY_MS } from "./HostedBrowserWebview";
 
 const threadRef = scopeThreadRef(
   EnvironmentId.make("host-webview-order"),
@@ -159,5 +161,32 @@ describe("ElectronBrowserHost", () => {
     const after = webviews();
     expect(after).toHaveLength(2);
     expect(after.every((node, index) => node.isSameNode(before[index]!))).toBe(true);
+  });
+
+  it("unloads a preview that stays hidden and reloads its page when shown again", async () => {
+    using _state = setup();
+    reconcilePreviewServerSessions(threadRef, {
+      sessions: [snapshot("tab_1", "2026-01-01T00:00:01.000Z")],
+      serverEpoch: "server-a",
+      revision: 1,
+    });
+    await using screen = await renderHost();
+    const webview = () => screen.container.querySelector("webview");
+    const runtimeTabId = webview()!.getAttribute("data-preview-tab")!;
+
+    using _timers = fakeTimers();
+    const surface = acquireBrowserSurface(runtimeTabId);
+    using _surface = { [Symbol.dispose]: () => surface.release() };
+    const rect = { x: 0, y: 0, width: 800, height: 600 };
+    await act(() => void surface.present(rect, true));
+    await act(() => void surface.present(rect, false));
+
+    await act(() => vi.advanceTimersByTimeAsync(PREVIEW_SLEEP_DELAY_MS - 1));
+    expect(webview()).not.toBeNull();
+    await act(() => vi.advanceTimersByTimeAsync(1));
+    expect(webview()).toBeNull();
+
+    await act(() => void surface.present(rect, true));
+    expect(webview()?.getAttribute("src")).toBe("https://example.com/tab_1");
   });
 });

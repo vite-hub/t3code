@@ -337,7 +337,7 @@ function BrowserMiniPlayer({ threadRef, tabId, miniPlayer }: Props & { readonly 
           <>
             <BrowserSurfaceSlot
               tabId={runtimeTabId}
-              visible={Boolean(desktopOverlay?.hasWebContents) && !loadFailed}
+              visible={!loadFailed}
               cornerRadius={PREVIEW_MINI_PLAYER_CORNER_RADIUS}
               zIndex={PREVIEW_MINI_PLAYER_WEBVIEW_Z_INDEX}
               fitSourceContent
@@ -350,7 +350,7 @@ function BrowserMiniPlayer({ threadRef, tabId, miniPlayer }: Props & { readonly 
                   url={loadFailed.url}
                   code={loadFailed.code}
                   description={loadFailed.description}
-                  onReload={() => void previewBridge?.refresh(runtimeTabId)}
+                  onReload={() => void previewBridge?.navigate(runtimeTabId, loadFailed.url)}
                 />
               </div>
             ) : !desktopOverlay?.hasWebContents ? (

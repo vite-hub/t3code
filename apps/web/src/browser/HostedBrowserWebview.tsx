@@ -44,6 +44,9 @@ interface ElectronWebview extends HTMLElement {
   executeJavaScript: (code: string, userGesture?: boolean) => Promise<unknown>;
 }
 
+/** How long a preview stays hidden before its guest is unloaded; showing it again reloads the URL. */
+export const PREVIEW_SLEEP_DELAY_MS = 5 * 60_000;
+
 declare global {
   interface HTMLElementTagNameMap {
     webview: ElectronWebview;
@@ -60,6 +63,7 @@ export function HostedBrowserWebview(props: {
   /** Fixed for the tab lifetime; Electron reads partition before guest attachment. */
   readonly profileId: string | undefined;
   readonly zoomFactor: number;
+  readonly audible?: boolean;
   readonly serverDriven?: boolean;
   readonly serverRendering?: {
     readonly colorScheme: DesktopPreviewColorScheme;
@@ -75,6 +79,7 @@ export function HostedBrowserWebview(props: {
     pictureInPicture,
     zoomFactor,
     profileId,
+    audible = false,
     serverDriven = false,
     serverRendering,
   } = props;
@@ -141,11 +146,27 @@ export function HostedBrowserWebview(props: {
   const [recoverySrc, setRecoverySrc] = useState(initialSrc);
   const active = presentation.visible && presentation.rect !== null;
   const shown = active || pictureInPicture;
+  const renderingActive = active || backgroundActivity || pictureInPicture || recordingActive;
+  // The server drives its tabs through this guest's debugger, so unloading it would cut the agent off.
+  const keepAwake = renderingActive || audible || serverDriven;
+  const [asleep, setAsleep] = useState(false);
+  if (asleep && keepAwake) {
+    setAsleep(false);
+    setRecoverySrc(initialUrl ?? initialSrc);
+    setWebviewGeneration((generation) => generation + 1);
+  }
   const reportedShown = useEffectEvent(() => serverDriven && shown);
   const remountCrashedWebview = useEffectEvent(() => {
     setRecoverySrc(initialUrl ?? initialSrc);
     setWebviewGeneration((generation) => generation + 1);
   });
+
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- unloads the guest once it has stayed hidden for the sleep delay
+  useEffect(() => {
+    if (keepAwake || asleep) return;
+    const timeout = setTimeout(() => setAsleep(true), PREVIEW_SLEEP_DELAY_MS);
+    return () => clearTimeout(timeout);
+  }, [asleep, keepAwake]);
 
   const setWebviewRef = (node: HTMLElement | null) => {
     webviewRef.current = node as ElectronWebview | null;
@@ -155,7 +176,7 @@ export function HostedBrowserWebview(props: {
   useEffect(() => {
     const webview = webviewRef.current;
     const bridge = previewBridge;
-    if (!clientSettingsHydrated || !webview || !config || !bridge) return;
+    if (asleep || !clientSettingsHydrated || !webview || !config || !bridge) return;
     let disposed = false;
     let recoveryTimeout: ReturnType<typeof setTimeout> | null = null;
     const register = () => {
@@ -204,6 +225,7 @@ export function HostedBrowserWebview(props: {
       webview.removeEventListener("focus", dismissHostPopups);
     };
   }, [
+    asleep,
     clientSettingsHydrated,
     config,
     runtimeTabId,
@@ -312,7 +334,6 @@ export function HostedBrowserWebview(props: {
     else void previewBridge?.goForward(runtimeTabId);
   };
 
-  const renderingActive = active || backgroundActivity || pictureInPicture || recordingActive;
   const wrapperStyle = resolveHostedBrowserWebviewWrapperStyle({
     active,
     renderingActive,
@@ -332,7 +353,7 @@ export function HostedBrowserWebview(props: {
       onScroll={syncContentPresentation}
       onMouseDown={preventThumbButtonFocus}
       onMouseUp={(event) => takeThumbButtonNavigation(event, navigateThumb)}
-      data-preview-rendering={renderingActive ? "active" : "suspended"}
+      data-preview-rendering={asleep ? "asleep" : renderingActive ? "active" : "suspended"}
       data-preview-viewport={runtimeTabId}
     >
       <div className="relative" style={{ width: layout.canvasWidth, height: layout.canvasHeight }}>
@@ -345,47 +366,49 @@ export function HostedBrowserWebview(props: {
             onChange={commitViewportChange}
           />
         ) : null}
-        <webview
-          key={webviewGeneration}
-          ref={setWebviewRef}
-          // Electron needs allowpopups at attachment. React drops boolean values for unknown attributes.
-          {...({ allowpopups: "true" } as unknown as { readonly allowpopups?: boolean })}
-          src={webviewGeneration === 0 ? initialSrc : recoverySrc}
-          partition={config.partition}
-          webpreferences={config.webPreferences}
-          {...(config.preloadUrl ? { preload: config.preloadUrl } : {})}
-          data-preview-tab={runtimeTabId}
-          data-preview-server-tab={tabId}
-          data-preview-viewport-mode={effectiveViewport._tag}
-          data-preview-viewport-key={browserViewportSettingKey(effectiveViewport)}
-          data-preview-css-width={
-            fittedSourceViewport
-              ? fittedSourceViewport.width
-              : effectiveViewport._tag === "fill"
-                ? Math.max(1, Math.round(layout.viewportWidth / layoutZoomFactor))
-                : effectiveViewport.width
-          }
-          data-preview-css-height={
-            fittedSourceViewport
-              ? fittedSourceViewport.height
-              : effectiveViewport._tag === "fill"
-                ? Math.max(1, Math.round(layout.viewportHeight / layoutZoomFactor))
-                : effectiveViewport.height
-          }
-          aria-hidden={active ? undefined : true}
-          className={cn(
-            "absolute flex overflow-hidden bg-white",
-            active && !layout.fillsPanel && "ring-1 ring-border/70 shadow-sm",
-          )}
-          style={{
-            left: layout.viewportX,
-            top: layout.viewportY,
-            width: layout.viewportWidth / layout.viewportScale,
-            height: layout.viewportHeight / layout.viewportScale,
-            transform: layout.viewportScale < 1 ? `scale(${layout.viewportScale})` : undefined,
-            transformOrigin: "top left",
-          }}
-        />
+        {asleep ? null : (
+          <webview
+            key={webviewGeneration}
+            ref={setWebviewRef}
+            // Electron needs allowpopups at attachment. React drops boolean values for unknown attributes.
+            {...({ allowpopups: "true" } as unknown as { readonly allowpopups?: boolean })}
+            src={webviewGeneration === 0 ? initialSrc : recoverySrc}
+            partition={config.partition}
+            webpreferences={config.webPreferences}
+            {...(config.preloadUrl ? { preload: config.preloadUrl } : {})}
+            data-preview-tab={runtimeTabId}
+            data-preview-server-tab={tabId}
+            data-preview-viewport-mode={effectiveViewport._tag}
+            data-preview-viewport-key={browserViewportSettingKey(effectiveViewport)}
+            data-preview-css-width={
+              fittedSourceViewport
+                ? fittedSourceViewport.width
+                : effectiveViewport._tag === "fill"
+                  ? Math.max(1, Math.round(layout.viewportWidth / layoutZoomFactor))
+                  : effectiveViewport.width
+            }
+            data-preview-css-height={
+              fittedSourceViewport
+                ? fittedSourceViewport.height
+                : effectiveViewport._tag === "fill"
+                  ? Math.max(1, Math.round(layout.viewportHeight / layoutZoomFactor))
+                  : effectiveViewport.height
+            }
+            aria-hidden={active ? undefined : true}
+            className={cn(
+              "absolute flex overflow-hidden bg-white",
+              active && !layout.fillsPanel && "ring-1 ring-border/70 shadow-sm",
+            )}
+            style={{
+              left: layout.viewportX,
+              top: layout.viewportY,
+              width: layout.viewportWidth / layout.viewportScale,
+              height: layout.viewportHeight / layout.viewportScale,
+              transform: layout.viewportScale < 1 ? `scale(${layout.viewportScale})` : undefined,
+              transformOrigin: "top left",
+            }}
+          />
+        )}
         {active && effectiveViewport._tag !== "fill" && !fittedSourceViewport ? (
           <>
             <BrowserViewportResizeHandles

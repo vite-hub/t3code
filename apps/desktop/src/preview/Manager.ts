@@ -2008,6 +2008,7 @@ const makeNativeOperations = Effect.fn("PreviewManager.makeOperations")(function
       guestLoadFailures.delete(webContentsId);
       runFork(hideDestroyedGuest(webContentsId));
       runFork(detachControlSession(webContentsId));
+      runFork(detachListeners(webContentsId));
     });
     yield* ensureControlSession(wc).pipe(
       Effect.catchCause((cause) =>
