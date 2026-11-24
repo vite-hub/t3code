@@ -347,6 +347,7 @@ function BrowserMiniPlayer({ threadRef, tabId, miniPlayer }: Props & { readonly 
             {loadFailed ? (
               <div className="pointer-events-auto absolute inset-0 z-[48] overflow-hidden rounded-[inherit]">
                 <PreviewUnreachable
+                  threadRef={threadRef}
                   url={loadFailed.url}
                   code={loadFailed.code}
                   description={loadFailed.description}
