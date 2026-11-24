@@ -143,6 +143,9 @@ interface SelectedElement {
   outline: HTMLDivElement;
   label: HTMLDivElement;
   baselineStyles: Map<string, string>;
+  /** Box and viewport when picked; a resize before Attach must not change them. */
+  pickedRect: PreviewAnnotationRect;
+  pickedViewport: { width: number; height: number };
 }
 
 interface AnnotationSession {
@@ -438,12 +441,15 @@ function withCaptureTimeout<A>(promise: Promise<A>, millis: number): Promise<A |
 const HTML_PREVIEW_MAX_CHARS = 500;
 
 /** Preserve the tag, HTML, and crop rect when React context lookup fails or stalls. */
-async function captureElement(element: Element): Promise<PickedElementPayload> {
+async function captureElement(target: SelectedElement): Promise<PickedElementPayload> {
+  const { element } = target;
   const base = {
     pageUrl: location.href,
     pageTitle: document.title?.trim() || null,
     tagName: element.tagName.toLowerCase(),
     pickedAt: new Date().toISOString(),
+    rect: target.pickedRect,
+    viewport: target.pickedViewport,
   };
   try {
     const context = await withCaptureTimeout(
@@ -971,6 +977,8 @@ function startAnnotation(
       outline: createBox(PRIMARY, PRIMARY_FILL),
       label: createLabel(),
       baselineStyles: new Map(),
+      pickedRect: rectFromDomRect(element.getBoundingClientRect()),
+      pickedViewport: { width: window.innerWidth, height: window.innerHeight },
     };
     selected.set(element, target);
     root.append(target.outline, target.label);
@@ -1712,7 +1720,7 @@ function startAnnotation(
     const submittedStyleChanges = Array.from(styleChanges.values(), (change) => ({ ...change }));
     void Promise.all(
       Array.from(selected.values()).map(async (target) => {
-        const element = await captureElement(target.element);
+        const element = await captureElement(target);
         for (const change of submittedStyleChanges) {
           if (change.targetId === target.id && element.selector !== null) {
             change.selector = element.selector;

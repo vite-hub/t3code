@@ -137,6 +137,11 @@ export const ElementContextDetails = Schema.Struct({
   componentName: NullableShortString,
   source: Schema.NullOr(ElementContextSource),
   styles: BoundedString(COMPOSER_CONTEXT_ELEMENT_STYLES_MAX_CHARS),
+  // Whole CSS px at pick time; references stored before these existed omit them.
+  rect: Schema.optionalKey(
+    Schema.Struct({ x: Schema.Int, y: Schema.Int, width: NonNegativeInt, height: NonNegativeInt }),
+  ),
+  viewport: Schema.optionalKey(Schema.Struct({ width: NonNegativeInt, height: NonNegativeInt })),
 });
 export type ElementContextDetails = typeof ElementContextDetails.Type;
 
