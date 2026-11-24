@@ -1,10 +1,17 @@
+import type { ScopedThreadRef } from "@t3tools/contracts";
 import { useState } from "react";
 
+import { writeHandoffToComposer } from "~/components/pullRequest/usePullRequestActions";
 import { Button } from "~/components/ui/button";
 
-import { describePreviewError } from "./errorCodeMessages";
+import {
+  describePreviewError,
+  formatPreviewErrorReport,
+  previewErrorLabel,
+} from "./errorCodeMessages";
 
 interface Props {
+  threadRef: ScopedThreadRef;
   url: string;
   code: number;
   description: string;
@@ -51,11 +58,11 @@ export function PreviewFileNotShown({
   );
 }
 
-export function PreviewUnreachable({ url, code, description, onReload, move }: Props) {
+export function PreviewUnreachable({ threadRef, url, code, description, onReload, move }: Props) {
   const [showDetails, setShowDetails] = useState(false);
   const host = safeHost(url) ?? url;
   const friendly = describePreviewError(description);
-  const errorLabel = description.length > 0 ? description : `ERR_${Math.abs(code) || "FAILED"}`;
+  const errorLabel = previewErrorLabel(code, description);
 
   return (
     <div className="scrollbar-gutter-both relative flex h-full min-h-0 w-full overflow-y-auto bg-background">
@@ -86,7 +93,7 @@ export function PreviewUnreachable({ url, code, description, onReload, move }: P
           {errorLabel}
         </div>
 
-        <div className="mt-auto flex items-center gap-2 pt-8">
+        <div className="mt-auto flex flex-wrap items-center gap-2 pt-8">
           <Button
             type="button"
             variant="outline"
@@ -96,6 +103,18 @@ export function PreviewUnreachable({ url, code, description, onReload, move }: P
             {showDetails ? "Hide details" : "Details"}
           </Button>
           <div className="flex-1" />
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() =>
+              writeHandoffToComposer(threadRef, {
+                prompt: formatPreviewErrorReport({ url, code, description }),
+              })
+            }
+          >
+            Send to thread
+          </Button>
           {move ? (
             <Button type="button" variant="outline" size="sm" onClick={move.onMove}>
               {move.label}
