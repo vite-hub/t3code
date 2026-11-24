@@ -16,6 +16,8 @@ export interface ElementContextSelection {
   componentName: string | null;
   source: PickedElementStackFrame | null;
   styles: string;
+  rect?: { x: number; y: number; width: number; height: number };
+  viewport?: { width: number; height: number };
 }
 
 function truncateString(value: string, limit: number): string {
@@ -53,6 +55,24 @@ export function normalizeElementContextSelection(
         }
       : null,
     styles: truncateString(normalizeText(raw.styles), ELEMENT_CONTEXT_STYLES_LIMIT),
+    ...(raw.rect
+      ? {
+          rect: {
+            x: Math.round(raw.rect.x),
+            y: Math.round(raw.rect.y),
+            width: Math.max(0, Math.round(raw.rect.width)),
+            height: Math.max(0, Math.round(raw.rect.height)),
+          },
+        }
+      : {}),
+    ...(raw.viewport
+      ? {
+          viewport: {
+            width: Math.max(0, Math.round(raw.viewport.width)),
+            height: Math.max(0, Math.round(raw.viewport.height)),
+          },
+        }
+      : {}),
   };
 }
 

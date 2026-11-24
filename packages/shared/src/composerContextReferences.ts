@@ -283,6 +283,13 @@ function formatElementDetails(element: ElementContextDetails): string[] {
   if (element.componentName) lines.push(`component: ${element.componentName}`);
   const location = element.source ? formatSourceLocation(element.source) : null;
   if (location) lines.push(`source: ${location}`);
+  if (element.viewport) {
+    lines.push(`viewport: ${element.viewport.width} × ${element.viewport.height} CSS px`);
+  }
+  if (element.rect) {
+    const { x, y, width, height } = element.rect;
+    lines.push(`box: x ${x}, y ${y} · ${width} × ${height}`);
+  }
   if (element.htmlPreview.trim()) lines.push("html:", indent(element.htmlPreview.trim()));
   if (element.styles.trim()) lines.push("styles:", indent(element.styles.trim()));
   return lines;

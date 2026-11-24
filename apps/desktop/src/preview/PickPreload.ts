@@ -444,6 +444,8 @@ async function captureElement(element: Element): Promise<PickedElementPayload> {
     pageTitle: document.title?.trim() || null,
     tagName: element.tagName.toLowerCase(),
     pickedAt: new Date().toISOString(),
+    rect: rectFromDomRect(element.getBoundingClientRect()),
+    viewport: { width: window.innerWidth, height: window.innerHeight },
   };
   try {
     const context = await withCaptureTimeout(

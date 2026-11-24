@@ -33,7 +33,17 @@ export function isPickedElementPayload(value: unknown): value is PickedElementPa
   if (c["source"] !== null && !isPickedStackFrame(c["source"])) return false;
   if (!Array.isArray(c["stack"])) return false;
   if (!c["stack"].every(isPickedStackFrame)) return false;
+  if (c["rect"] !== undefined && !isRect(c["rect"])) return false;
+  if (c["viewport"] !== undefined && !isViewport(c["viewport"])) return false;
   return true;
+}
+
+function isViewport(value: unknown): boolean {
+  if (typeof value !== "object" || value === null) return false;
+  const viewport = value as Record<string, unknown>;
+  return ["width", "height"].every(
+    (key) => typeof viewport[key] === "number" && Number.isFinite(viewport[key]),
+  );
 }
 
 function isRect(value: unknown): boolean {

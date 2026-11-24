@@ -43,4 +43,15 @@ describe("normalizeElementContextSelection", () => {
     expect(result!.htmlPreview.endsWith("…")).toBe(true);
     expect(result!.styles.endsWith("…")).toBe(true);
   });
+
+  it("rounds the picked box and viewport to whole CSS px", () => {
+    const result = normalizeElementContextSelection(
+      makePayload({
+        rect: { x: 10.4, y: -3.6, width: 99.5, height: 20.2 },
+        viewport: { width: 1279.6, height: 800 },
+      }),
+    );
+    expect(result?.rect).toEqual({ x: 10, y: -4, width: 100, height: 20 });
+    expect(result?.viewport).toEqual({ width: 1280, height: 800 });
+  });
 });

@@ -780,6 +780,30 @@ export const PickedElementStackFrameSchema: Schema.Codec<PickedElementStackFrame
   columnNumber: Schema.NullOr(Schema.Number),
 });
 
+export interface PreviewAnnotationRect {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+export const PreviewAnnotationRectSchema: Schema.Codec<PreviewAnnotationRect> = Schema.Struct({
+  x: Schema.Number,
+  y: Schema.Number,
+  width: Schema.Number,
+  height: Schema.Number,
+});
+
+export interface PickedElementViewport {
+  width: number;
+  height: number;
+}
+
+export const PickedElementViewportSchema: Schema.Codec<PickedElementViewport> = Schema.Struct({
+  width: Schema.Number,
+  height: Schema.Number,
+});
+
 export interface PickedElementPayload {
   pageUrl: string;
   pageTitle: string | null;
@@ -791,6 +815,9 @@ export interface PickedElementPayload {
   stack: ReadonlyArray<PickedElementStackFrame>;
   styles: string;
   pickedAt: string;
+  /** CSS px relative to the viewport at pick time; absent on payloads from older builds. */
+  rect?: PreviewAnnotationRect;
+  viewport?: PickedElementViewport;
 }
 
 export const PickedElementPayloadSchema: Schema.Codec<PickedElementPayload> = Schema.Struct({
@@ -804,20 +831,8 @@ export const PickedElementPayloadSchema: Schema.Codec<PickedElementPayload> = Sc
   stack: Schema.Array(PickedElementStackFrameSchema),
   styles: Schema.String,
   pickedAt: Schema.String,
-});
-
-export interface PreviewAnnotationRect {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-}
-
-export const PreviewAnnotationRectSchema: Schema.Codec<PreviewAnnotationRect> = Schema.Struct({
-  x: Schema.Number,
-  y: Schema.Number,
-  width: Schema.Number,
-  height: Schema.Number,
+  rect: Schema.optionalKey(PreviewAnnotationRectSchema),
+  viewport: Schema.optionalKey(PickedElementViewportSchema),
 });
 
 export interface PreviewAnnotationPoint {

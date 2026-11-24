@@ -196,6 +196,34 @@ describe("provider projection", () => {
     expect(projected).toContain("  selector: #pay");
     expect(projected).toContain("  source: Pay.tsx:3");
     expect(projected).toContain("- font-size: 12px → 20px");
+    expect(projected).not.toContain("viewport:");
+    expect(projected).not.toContain("box:");
+  });
+
+  it("says where a picked element sits and at what viewport", () => {
+    const element: ComposerContextRecord = {
+      version: 1,
+      contextId: ctx("ctx_e"),
+      kind: "element",
+      label: "button",
+      pageUrl: "http://localhost:3000/checkout",
+      pageTitle: null,
+      tagName: "button",
+      selector: "#pay",
+      htmlPreview: "<button>Pay</button>",
+      componentName: null,
+      source: null,
+      styles: "",
+      rect: { x: 24, y: 310, width: 120, height: 36 },
+      viewport: { width: 1280, height: 800 },
+    };
+    const projected = projectComposerContextForProvider({
+      text: "[button](t3-context://v1/element/ctx_e)",
+      records: [element],
+    });
+    expect(projected).toContain(
+      "selector: #pay\nviewport: 1280 × 800 CSS px\nbox: x 24, y 310 · 120 × 36\nhtml:",
+    );
   });
 
   it("expands assistant citations with and without context references", () => {
