@@ -350,7 +350,7 @@ function BrowserMiniPlayer({ threadRef, tabId, miniPlayer }: Props & { readonly 
                   url={loadFailed.url}
                   code={loadFailed.code}
                   description={loadFailed.description}
-                  onReload={() => void previewBridge?.refresh(runtimeTabId)}
+                  onReload={() => void previewBridge?.navigate(runtimeTabId, loadFailed.url)}
                 />
               </div>
             ) : !desktopOverlay?.hasWebContents ? (
