@@ -110,6 +110,10 @@ issue_body() {
   echo "Merge \`upstream/main\` into a \`sync/upstream-<date>\` branch by hand, fix the conflicts or the failing check, and open a PR to \`main\`. The next green sync closes this issue."
 }
 
+issues_enabled() {
+  [[ "$(gh api "repos/${GITHUB_REPOSITORY:-$(gh repo view --json nameWithOwner --jq .nameWithOwner)}" --jq .has_issues)" == true ]]
+}
+
 open_issue() {
   gh issue list --label "$LABEL" --state open --json number --jq '.[0].number // empty'
 }
@@ -128,6 +132,13 @@ cmd_report() {
   body=$(issue_body "$step")
   if $dry; then
     printf 'Would open or update issue "%s" [label %s]:\n\n%s\n' "$TITLE" "$LABEL" "$body"
+    return 0
+  fi
+  if ! issues_enabled; then
+    # Without issues, the failed run's summary and its notification carry the report.
+    echo "::error title=Upstream sync needs a manual merge::Issues are off for this repository; see the job summary"
+    if [[ -n "${GITHUB_STEP_SUMMARY:-}" ]]; then printf '%s\n' "$body" >> "$GITHUB_STEP_SUMMARY"; fi
+    printf '%s\n' "$body"
     return 0
   fi
   gh label create "$LABEL" --color d93f0b \
@@ -151,6 +162,7 @@ cmd_resolve() {
     printf 'Would close the open "%s" issue with: %s\n' "$LABEL" "$note"
     return 0
   fi
+  issues_enabled || return 0
   local number
   number=$(open_issue)
   if [[ -n "$number" ]]; then
