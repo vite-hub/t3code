@@ -1,9 +1,9 @@
 // @effect-diagnostics nodeBuiltinImport:off - A Node CLI script around the Promise-based runtime.
 // @effect-diagnostics globalConsole:off - It reports to the terminal that runs it.
 /**
- * Records one model turn as fixtures/<agent-id or kind>.events.jsonl, redacted:
- *   node packages/provider-runtime/scripts/record-fixture.ts <kind> <model> [--agent-id gemini]
- * The agent gets a temporary cwd and HOME, PATH and PASSTHROUGH variables, and 120 s.
+ * Records one redacted turn as fixtures/<agent-id or kind>.events.jsonl, in a temporary cwd and HOME:
+ *   record-fixture.ts <kind> <model> [--agent-id x] [--settings json] [--home dir] [--state dir]
+ * --home and --state seed that HOME or T3 state directory with a CLI's config or login.
  */
 import * as NodeFSP from "node:fs/promises";
 import * as NodeOS from "node:os";
@@ -27,7 +27,12 @@ const PASSTHROUGH =
 
 const { values, positionals } = NodeUtil.parseArgs({
   allowPositionals: true,
-  options: { "agent-id": { type: "string" } },
+  options: {
+    "agent-id": { type: "string" },
+    settings: { type: "string" },
+    home: { type: "string" },
+    state: { type: "string" },
+  },
 });
 const [kind, model] = positionals;
 if (!PROVIDER_RUNTIME_KINDS.includes(kind as ProviderRuntimeKind) || !model) {
@@ -49,8 +54,16 @@ const root = await NodeFSP.realpath(
 );
 const cwd = NodePath.join(root, "work");
 const home = NodePath.join(root, "home");
+const stateDirectory = NodePath.join(root, "state");
 const eventLogPath = NodePath.join(root, "events.jsonl");
-await Promise.all([NodeFSP.mkdir(cwd), NodeFSP.mkdir(home)]);
+await NodeFSP.mkdir(cwd);
+for (const [target, source] of [
+  [home, values.home],
+  [stateDirectory, values.state],
+] as const) {
+  if (source === undefined) await NodeFSP.mkdir(target);
+  else await NodeFSP.cp(NodePath.resolve(source), target, { recursive: true });
+}
 
 const environment: NodeJS.ProcessEnv = { PATH: process.env.PATH, HOME: home, LANG: "C.UTF-8" };
 for (const [name, value] of Object.entries(process.env)) {
@@ -62,11 +75,14 @@ const runtime = await createProviderRuntime({
   cwd,
   environment,
   eventLogPath,
-  stateDirectory: NodePath.join(root, "state"),
+  stateDirectory,
   // Registry agents install once per machine instead of once per recording.
   installationDirectory: NodePath.join(NodeOS.tmpdir(), "t3-record-fixture-tools"),
-  // customModels lets T3 pass a model the agent does not list, such as a proxy's model id.
-  ...(agentId === undefined ? {} : { settings: { agentId, customModels: [model] } }),
+  settings: {
+    // customModels lets T3 pass a model the agent does not list, such as a proxy's model id.
+    ...(agentId === undefined ? {} : { agentId, customModels: [model] }),
+    ...(values.settings === undefined ? {} : JSON.parse(values.settings)),
+  },
 });
 const threadId = ThreadId.make("record-fixture");
 const timeout = AbortSignal.timeout(TIMEOUT_MS);
