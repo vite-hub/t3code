@@ -14,6 +14,7 @@ on:
 permissions:
   actions: write
   contents: write
+  issues: write
 
 concurrency:
   group: sync-upstream-main
@@ -24,8 +25,7 @@ jobs:
     name: Merge upstream and publish packages
     runs-on: ubuntu-latest
     steps:
-      - name: Merge upstream main
-        id: sync
+      - name: Clone fork and fetch upstream
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
@@ -37,48 +37,25 @@ jobs:
           git remote add upstream https://github.com/pingdotgg/t3code.git
           git fetch --no-tags upstream main
 
-          if git merge-base --is-ancestor upstream/main HEAD; then
-            echo "changed=false" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-
-          workflow_base=$(git merge-base HEAD upstream/main)
-          git diff --name-status "$workflow_base" upstream/main -- .github/workflows \
-            > "$RUNNER_TEMP/upstream-workflows.txt"
-
-          # Workflows are fork-owned. GITHUB_TOKEN cannot push upstream workflow
-          # changes, and the fork has different release and package operations.
-          if ! git merge --no-commit --no-ff upstream/main; then
-            conflicts=$(git diff --name-only --diff-filter=U -- . \
-              ':(exclude).github/workflows/**')
-            if [[ -n "$conflicts" ]]; then
-              printf 'Unresolved upstream conflicts:\n%s\n' "$conflicts" >&2
-              exit 1
-            fi
-          fi
-          git restore --source=HEAD --staged --worktree -- .github/workflows
-          git commit --no-edit
-          echo "changed=true" >> "$GITHUB_OUTPUT"
-
-          if [[ -s "$RUNNER_TEMP/upstream-workflows.txt" ]]; then
-            echo "::warning title=Upstream workflows preserved::Review the workflow changes listed in the job summary"
-            {
-              echo "### Upstream workflow changes need manual review"
-              echo
-              echo '```text'
-              cat "$RUNNER_TEMP/upstream-workflows.txt"
-              echo '```'
-            } >> "$GITHUB_STEP_SUMMARY"
-          fi
-
+      # Installed before the merge so a lockfile-only conflict can be
+      # regenerated with the repo's package manager.
       - uses: voidzero-dev/setup-vp@v1
-        if: steps.sync.outputs.changed == 'true' || inputs.publish_packages
         with:
           node-version-file: package.json
           cache: true
-          run-install: true
+          run-install: false
+
+      - name: Merge upstream main
+        id: sync
+        run: scripts/sync-upstream.sh merge
+
+      - name: Install dependencies
+        id: install
+        if: steps.sync.outputs.changed == 'true' || inputs.publish_packages
+        run: vp install
 
       - name: Verify embedded providers before advancing main
+        id: verify
         if: steps.sync.outputs.changed == 'true' || inputs.publish_packages
         run: |
           vp run --filter @t3tools/contracts --filter @t3tools/provider-runtime build
@@ -86,13 +63,49 @@ jobs:
           vp test run packages/provider-runtime/src apps/server/src/provider/ProviderRegistry.test.ts apps/server/src/provider/codexUsageLimits.test.ts apps/server/src/provider/claudeUsageLimits.test.ts scripts/lib/cli-external-packages.test.ts --maxWorkers=2
 
       - name: Advance verified fork
+        id: push
         if: steps.sync.outputs.changed == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         run: git push origin HEAD:main
 
       - name: Publish updated packages
+        id: publish
         if: steps.sync.outputs.changed == 'true' || inputs.publish_packages
         env:
           GH_TOKEN: ${{ github.token }}
         run: gh workflow run pkg-pr-new.yml --repo "$GITHUB_REPOSITORY" --ref main
+
+      - name: Open or update the sync issue
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          FAILED_STEP: >-
+            ${{ steps.sync.outcome == 'failure' && 'Merge upstream main'
+            || steps.install.outcome == 'failure' && 'Install dependencies'
+            || steps.verify.outcome == 'failure' && 'Verify embedded providers'
+            || steps.push.outcome == 'failure' && 'Advance verified fork'
+            || steps.publish.outcome == 'failure' && 'Publish updated packages'
+            || 'Clone fork and fetch upstream or set up vp' }}
+        run: |
+          if [[ -x scripts/sync-upstream.sh ]]; then
+            scripts/sync-upstream.sh report --failed-step "$FAILED_STEP"
+          else
+            gh label create upstream-sync --color d93f0b --force >/dev/null
+            run="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+            number=$(gh issue list --label upstream-sync --state open --json number --jq '.[0].number // empty')
+            if [[ -n "$number" ]]; then
+              gh issue comment "$number" --body "Failed again in $run ($FAILED_STEP)."
+            else
+              gh issue create --title "Upstream sync needs a manual merge" --label upstream-sync \
+                --body "The daily Sync upstream workflow failed at $FAILED_STEP: $run"
+            fi
+          fi
+
+      - name: Close the sync issue
+        if: success()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: scripts/sync-upstream.sh resolve
