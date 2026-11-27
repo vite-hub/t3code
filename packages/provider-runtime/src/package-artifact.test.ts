@@ -7,6 +7,8 @@ import * as NodeUtil from "node:util";
 
 import { describe, expect, it } from "vite-plus/test";
 
+import { PROVIDER_RUNTIME_KINDS } from "./kinds.ts";
+
 const execFile = NodeUtil.promisify(NodeChildProcess.execFile);
 const packageDirectory = NodePath.resolve(import.meta.dirname, "..");
 const repositoryDirectory = NodePath.resolve(packageDirectory, "../..");
@@ -47,7 +49,7 @@ function publishedManifest(
 }
 
 describe("provider-runtime package artifact", () => {
-  it("starts a Codex-only consumer with ESM Node builtins and no Claude SDK", async () => {
+  it("starts a Codex-only consumer that loads only the Codex driver, with ESM Node builtins and no Claude SDK", async () => {
     const temporaryDirectory = await NodeFSP.mkdtemp(
       NodePath.join(NodeOS.tmpdir(), "t3-provider-runtime-package-"),
     );
@@ -78,6 +80,12 @@ describe("provider-runtime package artifact", () => {
         /import\s*\(\s*(?:\/\*[\s\S]*?\*\/\s*)?["']@anthropic-ai\/claude-agent-sdk["']\s*\)/u,
       );
       expect(bundle).not.toContain("@anthropic-ai/claude-agent-sdk");
+      const driverChunks = (
+        await NodeFSP.readdir(NodePath.join(providerRuntimePackageDirectory, "dist"))
+      ).filter((file) => /\.driver-[\w-]+\.mjs$/u.test(file));
+      expect(driverChunks.map((file) => file.replace(/\.driver-[\w-]+\.mjs$/u, "")).sort()).toEqual(
+        [...PROVIDER_RUNTIME_KINDS].sort(),
+      );
 
       const contractsManifest = await readManifest(
         NodePath.join(contractsDirectory, "package.json"),
@@ -130,15 +138,21 @@ describe("provider-runtime package artifact", () => {
         NodePath.join(consumerDirectory, "verify.mjs"),
         [
           'import { registerHooks } from "node:module";',
+          "const loaded = [];",
           "registerHooks({ resolve(specifier, context, nextResolve) {",
           '  if (context.conditions.includes("require") && /^(node:)?(process|buffer)$/.test(specifier)) {',
           '    throw new Error(`No such module "${specifier}"`);',
           "  }",
           "  return nextResolve(specifier, context);",
+          "}, load(url, context, nextLoad) {",
+          "  loaded.push(url);",
+          "  return nextLoad(url, context);",
           "} });",
           'const { createProviderRuntime } = await import("@t3tools/provider-runtime");',
           'const runtime = await createProviderRuntime({ provider: "codex" });',
           "await runtime.close();",
+          'const drivers = loaded.map((url) => url.split("/").pop()).filter((file) => /\\.driver-/.test(file));',
+          "process.stdout.write(JSON.stringify(drivers));",
         ].join("\n"),
       );
 
@@ -159,7 +173,13 @@ describe("provider-runtime package artifact", () => {
           NodePath.join(consumerDirectory, "node_modules/@anthropic-ai/claude-agent-sdk"),
         ),
       ).rejects.toMatchObject({ code: "ENOENT" });
-      await run(process.execPath, ["verify.mjs"], consumerDirectory);
+      await expect(
+        NodeFSP.access(NodePath.join(consumerDirectory, "node_modules/@cursor/sdk")),
+      ).rejects.toMatchObject({ code: "ENOENT" });
+      const { stdout } = await run(process.execPath, ["verify.mjs"], consumerDirectory);
+      const loadedDrivers: ReadonlyArray<string> = JSON.parse(stdout);
+      expect(loadedDrivers).toHaveLength(1);
+      expect(loadedDrivers[0]).toMatch(/^codex\.driver-[\w-]+\.mjs$/u);
     } finally {
       await NodeFSP.rm(temporaryDirectory, { recursive: true, force: true });
     }
