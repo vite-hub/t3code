@@ -108,6 +108,7 @@
       // fixtures run under node. Upstream CI runs verify-built-boot.ts; the fork
       // keeps its own workflows.
       "entry": [
+        "src/epubPreviewMain.tsx!",
         "scripts/warm-dep-cache.ts",
         "scripts/verify-built-boot.ts",
         "test/fixtures/**/*.mjs",
