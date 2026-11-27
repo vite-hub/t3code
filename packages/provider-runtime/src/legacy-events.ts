@@ -271,6 +271,9 @@ export class LegacyEventTranslator {
       case "background_work.updated":
       case "prompt_suggestion.updated":
       case "steer.updated":
+      // Thread option changes the agent made, and background work lost with its process.
+      case "thread_model_selection.updated":
+      case "background_work.lost":
         return [];
     }
   }
@@ -588,6 +591,12 @@ export class LegacyEventTranslator {
           title: item.label ?? item.url,
           detail: nonEmpty(item.reason),
           data: { kind: item.type, linkStatus: item.linkStatus },
+        });
+      case "feedback_request":
+        return this.#translateLifecycleItem(item, refs, {
+          itemType: "unknown",
+          title: nonEmpty(item.title),
+          data: { kind: item.type, feedbackStatus: item.feedbackStatus },
         });
     }
   }
