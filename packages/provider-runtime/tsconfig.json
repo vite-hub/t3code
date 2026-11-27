@@ -5,5 +5,5 @@
     "types": ["node"],
     "lib": ["ESNext", "esnext.disposable"]
   },
-  "include": ["src"]
+  "include": ["src", "scripts"]
 }
