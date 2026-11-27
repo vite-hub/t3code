@@ -240,6 +240,7 @@ export const makeAcpRegistryAdapterV2 = Effect.fn("makeAcpRegistryAdapterV2")(fu
       /^glm(?:-acp-agent)?(\.exe|\.cmd)?$/i.test(
         options.settings.commandPath.split(/[\\/]/).pop() ?? "",
       ));
+  const isGemini = registryAgentId === "gemini";
   const isVibe =
     registryAgentId === "mistral-vibe" ||
     (options.settings.source === "local" &&
@@ -288,8 +289,9 @@ export const makeAcpRegistryAdapterV2 = Effect.fn("makeAcpRegistryAdapterV2")(fu
         : isOpenCode
           ? { extractElicitationForm: extractOpenCodeElicitationForm }
           : {}),
-    // glm-acp-agent is the one agent whose per-turn usage a live probe has verified.
-    ...(isGlm ? { reportsPerTurnPromptUsage: true } : {}),
+    // Live probes verified per-turn usage for glm-acp-agent and Gemini CLI 0.71, whose
+    // PromptResponse sums the prompt's model calls (input includes cached tokens).
+    ...(isGlm || isGemini ? { reportsPerTurnPromptUsage: true } : {}),
     ...(watchKimiPromptOutcome === undefined
       ? {}
       : {

@@ -167,6 +167,12 @@
       // These workspace packages are private to this monorepo.
       "includeEntryExports": true,
     },
+    "packages/provider-runtime": {
+      "includeEntryExports": true,
+      // vp pack builds the bridge entry, the build swaps in the settings key by path, and
+      // the fixture recorder runs from the command line.
+      "entry": ["src/acp-mcp-bridge.ts!", "src/server-settings-key.ts!", "scripts/*.ts"],
+    },
     "packages/effect-acp": {
       "includeEntryExports": true,
       "entry": ["test/fixtures/*.ts"],

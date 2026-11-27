@@ -9,6 +9,7 @@ import * as HostProcess from "../../shared/src/HostProcess.ts";
 import * as Effect from "effect/Effect";
 import { afterEach, describe, expect, vi } from "vite-plus/test";
 import { inspectProvider } from "./inspect.ts";
+import { PROVIDER_RUNTIME_KINDS, type ProviderRuntimeKind } from "./kinds.ts";
 
 const claudeSdk = vi.hoisted(() => ({
   query:
@@ -216,6 +217,34 @@ describe("inspectProvider", () => {
         settings: { binaryPath: "/nonexistent/t3-inspect-cli" },
       });
       expect(result).toMatchObject({ installed: false, status: "error" });
+    },
+  );
+
+  // Cursor runs in-process through @cursor/sdk and acp needs an agent first, so neither looks up a CLI.
+  const CLI_KINDS: ReadonlyArray<ProviderRuntimeKind> = PROVIDER_RUNTIME_KINDS.filter(
+    (kind) => kind !== "cursor" && kind !== "acp",
+  );
+
+  it.each(PROVIDER_RUNTIME_KINDS)(
+    "inspects %s from the host environment without a model turn",
+    async (provider) => {
+      const directory = await NodeFSP.mkdtemp(NodePath.join(NodeOS.tmpdir(), "t3-inspect-"));
+      directories.push(directory);
+      const empty = NodePath.join(directory, "bin");
+      await NodeFSP.mkdir(empty);
+      const result = await inspectProvider({
+        provider,
+        environment: { PATH: empty, HOME: directory },
+        installationDirectory: directory,
+        signal: AbortSignal.timeout(30_000),
+      });
+      expect(result.enabled).toBe(true);
+      if (CLI_KINDS.includes(provider)) {
+        expect(result).toMatchObject({ installed: false, status: "error" });
+      } else {
+        expect(result.status).not.toBe("ready");
+      }
+      expect(result.auth.status).not.toBe("authenticated");
     },
   );
 });

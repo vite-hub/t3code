@@ -2045,6 +2045,9 @@ importers:
       '@anthropic-ai/claude-agent-sdk':
         specifier: ^0.3.321
         version: 0.3.321(@anthropic-ai/sdk@0.93.0(zod@4.6.7))(@modelcontextprotocol/sdk@1.32.2(supports-color@8.1.1)(zod@4.6.7))(zod@4.6.7)
+      '@cursor/sdk':
+        specifier: 1.5.0
+        version: 1.5.0(patch_hash=7fe8889d7916196c56006cf15a39abba4099feb2c567b4030b82a09364cee500)(zod@4.6.7)
       '@t3tools/contracts':
         specifier: workspace:*
         version: link:../contracts
