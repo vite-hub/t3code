@@ -83,9 +83,13 @@ createInterface({ input: process.stdin }).on('line', line => {
       },
       environment: { ...process.env, PROBE_MODE: mode, PROBE_REQUESTS: requests, PROBE_PID: pid },
     },
+    // The probe stops Codex after it returns the snapshot, so the exit can trail the result.
     async assertStopped() {
       const childPid = Number(await NodeFSP.readFile(pid, "utf8"));
-      expect(() => process.kill(childPid, 0)).toThrow();
+      await vi.waitFor(() => expect(() => process.kill(childPid, 0)).toThrow(), {
+        timeout: 5_000,
+        interval: 50,
+      });
     },
   };
 }

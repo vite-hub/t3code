@@ -83,6 +83,7 @@ describe("createProviderRuntime", () => {
         "initialize",
         "initialized",
         "skills/extraRoots/set",
+        "config/read",
         "thread/start",
       ]);
       expect(requests[2]?.params).toEqual({ extraRoots: [skillRoot] });
