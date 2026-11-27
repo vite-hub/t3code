@@ -238,8 +238,8 @@ describe("bounded binary previews", () => {
     }
   });
 
-  it("names archive folders whose paths have leading or repeated slashes", async () => {
-    const bytes = new Uint8Array(2048);
+  it("names archive folders whose paths have leading slashes, repeated slashes or ./", async () => {
+    const bytes = new Uint8Array(3072);
     const write = (offset: number, value: string) =>
       bytes.set(new TextEncoder().encode(value), offset);
     const member = (offset: number, name: string, content: string) => {
@@ -259,6 +259,8 @@ describe("bounded binary previews", () => {
     };
     member(0, "/a//hello.txt", "nested hello");
     member(1024, "a/hello.txt", "plain hello");
+    // `tar cf x.tar .` names every member from "./".
+    member(2048, "./a/dot.txt", "dot hello");
     const src = URL.createObjectURL(new Blob([bytes]));
     try {
       await using screen = await render(<BinaryViewer src={src} name="paths.tar" kind="archive" />);
@@ -271,14 +273,17 @@ describe("bounded binary previews", () => {
       const preview = () => screen.container.querySelector("pre")?.textContent;
       await vi.waitFor(() => expect(rows()).toEqual(["a"]), 10_000);
       await act(() => buttons()[0]!.click());
-      await vi.waitFor(() => expect(rows()).toEqual(["hello.txt", "hello.txt"]));
-      await act(() => buttons()[0]!.click());
+      await vi.waitFor(() => expect(rows()).toEqual(["dot.txt", "hello.txt", "hello.txt"]));
+      await act(() => buttons()[1]!.click());
       await vi.waitFor(() => expect(preview()).toContain("nested hello"), 10_000);
       await act(() => back().click());
-      await act(() => buttons()[1]!.click());
+      await act(() => buttons()[2]!.click());
       await vi.waitFor(() => expect(preview()).toContain("plain hello"), 10_000);
       await act(() => back().click());
-      await vi.waitFor(() => expect(rows()).toEqual(["hello.txt", "hello.txt"]));
+      await act(() => buttons()[0]!.click());
+      await vi.waitFor(() => expect(preview()).toContain("dot hello"), 10_000);
+      await act(() => back().click());
+      await vi.waitFor(() => expect(rows()).toEqual(["dot.txt", "hello.txt", "hello.txt"]));
       const parent = () =>
         screen.container.querySelector<HTMLButtonElement>('[aria-label="Parent folder"]')!;
       await act(() => parent().click());
@@ -1665,9 +1670,9 @@ it.each(["archive", "sqlite"] as const)(
 );
 
 it("loads a font attachment through the lazy preview", async () => {
-  const { default: fontUrl } =
-    await import("../../../node_modules/@betteroffice/fonts/assets/Carlito-Regular.ttf?url");
-  const file = await (await fetch(fontUrl)).blob();
+  const { loadBundledFontBytes, resolveBundledFamilyFace } = await import("@betteroffice/fonts");
+  const bytes = await loadBundledFontBytes(resolveBundledFamilyFace("Carlito", false, false)!);
+  const file = new Blob([bytes], { type: "font/ttf" });
   await using screen = await render(
     <AttachmentFilePreview
       name="Carlito.ttf"
@@ -2334,9 +2339,17 @@ it("renders EPUB publisher styles and follows an anchored link to a fixed-layout
   function frame() {
     return screen.container.querySelector("iframe");
   }
+  // The cold worker parse takes most of a second; wait for the frame's onLoad pass before asserting.
+  await vi.waitFor(
+    () => {
+      const doc = frame()?.contentDocument;
+      expect(doc?.body.dir).toBe("rtl");
+      expect(doc?.querySelector("epub-nested-link")).toBeNull();
+    },
+    { timeout: 10_000 },
+  );
   await vi.waitFor(() => {
     const doc = frame()?.contentDocument;
-    expect(doc?.body.dir).toBe("rtl");
     expect(doc?.querySelector("pre")?.textContent).toBe("\n      npm test");
     expect(doc?.getElementById("pagebreak")?.textContent).toBe("");
     const caption = doc?.querySelector("#caption > a");
