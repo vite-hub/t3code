@@ -1,5 +1,9 @@
 {
   "extends": "../../tsconfig.base.json",
-  "compilerOptions": {},
+  // The runtime typechecks the server sources it bundles, so it uses the server's environment.
+  "compilerOptions": {
+    "types": ["node"],
+    "lib": ["ESNext", "esnext.disposable"]
+  },
   "include": ["src"]
 }

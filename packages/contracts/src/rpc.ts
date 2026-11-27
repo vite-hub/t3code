@@ -998,11 +998,25 @@ const WsPeerLinksUnlinkRpc = Rpc.make(WS_METHODS.peerLinksUnlink, {
   error: Schema.Union([PeerLinkError, EnvironmentAuthorizationError]),
 });
 
+const WsPeerLinksSubscribeThreadError = Schema.Union([
+  PeerLinkThreadReadError,
+  EnvironmentAuthorizationError,
+]);
+
 /** A linked environment's thread, as its own thread subscription streams it. */
-const WsPeerLinksSubscribeThreadRpc = Rpc.make(WS_METHODS.peerLinksSubscribeThread, {
+// Spelled out so the published declaration stays within compiler limits (TS7056).
+const WsPeerLinksSubscribeThreadRpc: Rpc.Rpc<
+  typeof WS_METHODS.peerLinksSubscribeThread,
+  typeof PeerLinkThreadInput,
+  RpcSchema.Stream<
+    typeof OrchestrationV2RpcSchemas.subscribeThread.output,
+    typeof WsPeerLinksSubscribeThreadError
+  >,
+  typeof Schema.Never
+> = Rpc.make(WS_METHODS.peerLinksSubscribeThread, {
   payload: PeerLinkThreadInput,
   success: OrchestrationV2RpcSchemas.subscribeThread.output,
-  error: Schema.Union([PeerLinkThreadReadError, EnvironmentAuthorizationError]),
+  error: WsPeerLinksSubscribeThreadError,
   stream: true,
 });
 
