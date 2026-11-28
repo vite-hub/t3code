@@ -200,6 +200,7 @@ import * as ServerSelfUpdate from "./cloud/selfUpdate.ts";
 import * as NpmRelease from "./cloud/npmRelease.ts";
 import * as RelayTracing from "./cloud/relayTracing.ts";
 import * as ServerLifecycleEvents from "./serverLifecycleEvents.ts";
+import * as AgentAlerts from "./notifications/AgentAlerts.ts";
 import * as ServerRuntimeStartup from "./serverRuntimeStartup.ts";
 import * as SecretResolver from "@t3tools/secret-provider-core/server/SecretResolver";
 import * as ManagedProviders from "./policy/managedProviders.ts";
@@ -1587,6 +1588,7 @@ export const layerWsRpc = (
       const npmRelease = yield* NpmRelease.NpmRelease;
       const config = yield* ServerConfig.ServerConfig;
       const lifecycleEvents = yield* ServerLifecycleEvents.ServerLifecycleEvents;
+      const agentAlerts = yield* AgentAlerts.AgentAlerts;
       const storageCleanup = yield* StorageCleanup.StorageCleanup;
       const databaseStorage = yield* DatabaseStorage.DatabaseStorage;
       const serverSettings = yield* ServerSettings.ServerSettingsService;
@@ -3731,6 +3733,7 @@ export const layerWsRpc = (
               );
             }),
           ),
+        [WS_METHODS.subscribeAgentAlerts]: (_input) => agentAlerts.stream,
         [WS_METHODS.subscribeServerLifecycle]: (_input) =>
           Stream.unwrap(
             Effect.gen(function* () {
