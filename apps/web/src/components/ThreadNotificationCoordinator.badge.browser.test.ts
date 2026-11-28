@@ -18,6 +18,7 @@ const state = vi.hoisted(() => ({
   sound: vi.fn(),
   unlock: vi.fn(),
   badge: vi.fn(),
+  mark: vi.fn(),
   settingsListeners: new Set<() => void>(),
 }));
 vi.mock(import("./ui/toast"), async (original) => {
@@ -31,6 +32,10 @@ vi.mock(import("./ui/toast"), async (original) => {
     },
   };
 });
+vi.mock(import("../agentAlertMarks"), async (original) => ({
+  ...(await original()),
+  markAgentAlert: state.mark as never,
+}));
 vi.mock(import("../state/shell"), async (original) => {
   const actual = await original();
   return {
@@ -558,4 +563,21 @@ it("toasts an agent's alert in the focused app unless its thread is the open one
     }),
   );
   expect(TestNotification.sent).toEqual([]);
+});
+
+it("marks an agent's alert with notifications off, and nothing rings", async () => {
+  await using app = setup();
+  state.mode = "off";
+  state.inApp = false;
+  app.start();
+  app.alert("one", { id: "tool-1", threadId: "thread", body: "fleet.lock stuck" });
+
+  expect(state.mark).toHaveBeenCalledExactlyOnceWith(
+    { environmentId: "one", threadId: "thread" },
+    "fleet.lock stuck",
+    expect.any(String),
+  );
+  expect(TestNotification.sent).toEqual([]);
+  expect(state.toast).not.toHaveBeenCalled();
+  expect(state.sound).not.toHaveBeenCalled();
 });

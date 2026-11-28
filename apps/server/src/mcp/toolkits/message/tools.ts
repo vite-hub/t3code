@@ -3,6 +3,7 @@ import { SEND_TO_USER_MAX_LENGTH, SEND_TO_USER_TOOL_NAME } from "@t3tools/shared
 import * as Schema from "effect/Schema";
 import { McpSchema, Tool, Toolkit } from "effect/ai";
 
+import * as AgentAlerts from "../../../notifications/AgentAlerts.ts";
 import * as ThreadManagementService from "../../../orchestration-v2/ThreadManagementService.ts";
 import * as McpInvocationContext from "../../McpInvocationContext.ts";
 
@@ -37,4 +38,39 @@ const SendToUserTool = Tool.make(SEND_TO_USER_TOOL_NAME, {
   // Claude Code defers MCP tools behind ToolSearch; Anthropic says to declare this from the first request.
   .annotate(Tool.Meta, { "anthropic/alwaysLoad": true });
 
-export const MessageToolkit = Toolkit.make(SendToUserTool);
+const NOTIFY_USER_TOOL_NAME = "notify_user";
+const NOTIFY_USER_MAX_LENGTH = 200;
+
+// A turn that ends on a question looks finished, like every other thread. Only the agent knows
+// that it is waiting on the user, so it says so, and T3 Code rings the device the user is on.
+const NotifyUserTool = Tool.make(NOTIFY_USER_TOOL_NAME, {
+  description:
+    "Get the user's attention on the device they are using. Call it when you can't go on without them: a decision, an answer, a login or a step only they can take. Call it before you end your turn on a question, and not for progress or a finished task. The thread stays marked until the user opens it.",
+  parameters: Schema.Struct({
+    message: Schema.String.check(
+      Schema.isMinLength(1),
+      Schema.isMaxLength(NOTIFY_USER_MAX_LENGTH),
+    ).annotate({ description: "One line: what you need from the user." }),
+  }),
+  success: Schema.Struct({
+    delivered: Schema.Boolean,
+    routedTo: Schema.NullOr(Schema.String),
+    message: Schema.String,
+  }),
+  failure: OrchestratorMcpFailure,
+  failureMode: "return",
+  dependencies: [
+    AgentAlerts.AgentAlerts,
+    McpInvocationContext.McpInvocationContext,
+    ThreadManagementService.ThreadManagementService,
+  ],
+})
+  .annotate(Tool.Title, "Notify the user")
+  .annotate(Tool.Readonly, true)
+  .annotate(Tool.Destructive, false)
+  .annotate(Tool.Idempotent, false)
+  .annotate(Tool.OpenWorld, false)
+  .annotate(McpSchema.EnabledWhen, McpInvocationContext.hiddenFromOutsideClients)
+  .annotate(Tool.Meta, { "anthropic/alwaysLoad": true });
+
+export const MessageToolkit = Toolkit.make(SendToUserTool, NotifyUserTool);

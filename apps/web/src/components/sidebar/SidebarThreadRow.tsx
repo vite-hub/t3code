@@ -37,6 +37,7 @@ import {
 import type { TimestampFormat } from "@t3tools/contracts/settings";
 import {
   AlarmClockIcon,
+  BellRingIcon,
   AlarmClockOffIcon,
   ArrowRightLeftIcon,
   CheckIcon,
@@ -90,6 +91,7 @@ import { formatRelativeTime, parseTimestampDate } from "../../timestampFormat";
 import type { SidebarThreadSummary } from "../../types";
 import type { EnvironmentProject } from "@t3tools/client-runtime/state/shell";
 import { cn } from "~/lib/utils";
+import { useAgentAlertMark } from "../../agentAlertMarks";
 import { textDirection } from "~/textDirection";
 import { EnvironmentMachineIcon } from "../EnvironmentMachineIcon";
 import {
@@ -582,6 +584,7 @@ const TOP_STATUS_ICONS = {
   failed: CircleAlertIcon,
   done: CircleCheckIcon,
   woke: AlarmClockIcon,
+  alert: BellRingIcon,
 } as const;
 
 function TopStatusIcon(props: { icon: keyof typeof TOP_STATUS_ICONS; className: string }) {
@@ -792,21 +795,35 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
 
   const isUnread = hasUnseenCompletion({ ...thread, lastVisitedAt });
   const status = resolveSidebarRowStatus({ ...thread, lastVisitedAt });
+  // The agent called the user with notify_user; its own pending requests already say so.
+  const alertMark = useAgentAlertMark(threadKey, {
+    lastVisitedAt,
+    latestUserAuthoredMessageAt: thread.latestUserAuthoredMessageAt,
+  });
+  const needsYou =
+    alertMark !== null && !props.isRouteThread && status !== "approval" && status !== "input";
   const lastVisitedDate = lastVisitedAt === undefined ? null : parseTimestampDate(lastVisitedAt);
   const wokeAtDate = props.wokeAt === null ? null : parseTimestampDate(props.wokeAt);
   const isWoke =
     wokeAtDate !== null &&
     (lastVisitedDate === null || lastVisitedDate < wokeAtDate) &&
     thread.settledOverride !== "settled";
-  const shouldRecede = shouldRecedeSidebarThread({
-    status,
-    isUnread,
-    isWoke,
-    isActive: props.isActive,
-    isSelected,
-  });
-  const runStatus =
-    status === "preparing" || status === "working"
+  const shouldRecede =
+    !needsYou &&
+    shouldRecedeSidebarThread({
+      status,
+      isUnread,
+      isWoke,
+      isActive: props.isActive,
+      isSelected,
+    });
+  const runStatus = needsYou
+    ? {
+        label: gt("Needs you", { $context: "thread status: the agent asked for the user" }),
+        icon: "alert" as const,
+        className: "text-warning-foreground",
+      }
+    : status === "preparing" || status === "working"
       ? {
           label:
             status === "preparing"
@@ -1061,7 +1078,9 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
           ? cn(draftSurfaceClassName, "text-sidebar-foreground")
           : shouldRecede
             ? "text-sidebar-muted-foreground/75 hover:bg-sidebar-row-hover hover:text-sidebar-foreground"
-            : "bg-transparent text-sidebar-foreground hover:bg-sidebar-row-hover",
+            : needsYou
+              ? "bg-warning/8 text-sidebar-foreground ring-1 ring-inset ring-warning/45 hover:bg-warning/16"
+              : "bg-transparent text-sidebar-foreground hover:bg-sidebar-row-hover",
     shouldRecede &&
       (status === "preparing" || status === "working") &&
       "opacity-70 transition-opacity hover:opacity-100 focus-within:opacity-100 motion-reduce:transition-none",
@@ -1352,6 +1371,12 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
       </span>
     </div>
   );
+  const alertLine =
+    needsYou && alertMark !== null ? (
+      <div className="mt-0.5 flex min-w-0 items-center gap-1.5 text-warning-foreground text-xs">
+        <span className="min-w-0 flex-1 truncate">{alertMark.body}</span>
+      </div>
+    ) : null;
   const titleLineIcons = metaLineEmpty ? (
     <span aria-hidden className="inline-flex shrink-0 items-center gap-1">
       <SidebarProviderIcon
@@ -1571,7 +1596,7 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
             )}
             {props.sweepAction !== null ? dragDestination : null}
           </div>
-          {multiline ? metaLine : null}
+          {multiline ? (alertLine ?? metaLine) : null}
         </ThreadHoverCardTrigger>
       </li>
     );
@@ -1696,7 +1721,7 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
                             BackgroundThreadAnnouncer and the open thread's
                             timeline speak status changes instead. */}
                         {topStatus.label}
-                        {status === "preparing" || status === "working" ? (
+                        {needsYou ? null : status === "preparing" || status === "working" ? (
                           <span aria-hidden>
                             <WorkingDuration
                               environmentId={thread.environmentId}
@@ -1792,7 +1817,7 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
             ) : null}
             {titleLineIcons}
           </div>
-          {metaLine}
+          {alertLine ?? metaLine}
         </div>
       </ThreadHoverCardTrigger>
     </li>

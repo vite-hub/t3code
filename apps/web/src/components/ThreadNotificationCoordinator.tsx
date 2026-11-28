@@ -27,7 +27,9 @@ import {
 } from "lucide-react";
 import type { ReactNode } from "react";
 
+import { markAgentAlert } from "../agentAlertMarks";
 import { getClientSettings, subscribeClientSettings } from "../hooks/useSettings";
+import { getClientId } from "../lib/backgroundActivityReporter";
 import { isWindowsPlatform } from "../lib/utils";
 import { environmentSummaries } from "../state/presentation";
 import { serverEnvironment } from "../state/server";
@@ -261,14 +263,6 @@ export function startThreadNotifications(
 
   // An agent's own message, sent while its thread is still running, so no status change announces it.
   const presentAgentAlert = (environmentId: EnvironmentId, alert: AgentAlert, title: string) => {
-    const active = activeThread();
-    if (
-      document.visibilityState === "visible" &&
-      document.hasFocus() &&
-      active.environmentId === environmentId &&
-      active.threadId === alert.threadId
-    )
-      return;
     show(environmentId, alert.threadId, {
       title,
       body: alert.body,
@@ -382,6 +376,23 @@ export function startThreadNotifications(
       }
       const thread = threads.find((candidate) => candidate.id === alert.threadId);
       if (thread === undefined || thread.archivedAt !== null) return;
+      // The user is reading this thread already.
+      const active = activeThread();
+      if (
+        document.visibilityState === "visible" &&
+        document.hasFocus() &&
+        active.environmentId === environmentId &&
+        active.threadId === alert.threadId
+      )
+        return;
+      // Every client marks the thread, so it still stands out wherever the user looks next.
+      markAgentAlert(
+        { environmentId, threadId: alert.threadId },
+        alert.body,
+        new Date().toISOString(),
+      );
+      // Only the client the user is on rings.
+      if (alert.targetClientId !== undefined && alert.targetClientId !== getClientId()) return;
       presentAgentAlert(environmentId, alert, thread.title || "T3 Code");
     };
     const unsubscribeShell = registry.subscribe(
@@ -455,9 +466,10 @@ export function startThreadNotifications(
 
   const syncEnvironments = () => {
     const { notificationMode, inAppNotificationsEnabled } = getClientSettings();
-    const enabled = notificationMode !== "off" || inAppNotificationsEnabled;
-    if (!enabled) closeToasts(() => true);
-    const environmentIds = enabled ? registry.get(environmentSummaries.environmentIdsAtom) : [];
+    if (notificationMode === "off" && !inAppNotificationsEnabled) closeToasts(() => true);
+    // Watched with notifications off too: an agent's alert still marks its thread, and `show`
+    // checks the settings before anything plays or pops up.
+    const environmentIds = registry.get(environmentSummaries.environmentIdsAtom);
     const activeIds = new Set(environmentIds);
     for (const [environmentId, entry] of watched) {
       if (activeIds.has(environmentId)) continue;

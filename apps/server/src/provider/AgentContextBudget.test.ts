@@ -51,6 +51,7 @@ import { ServerSettingsService } from "../serverSettings.ts";
 import { SourceControlRepositoryService } from "../sourceControl/SourceControlRepositoryService.ts";
 import { GitVcsDriver } from "../vcs/GitVcsDriver.ts";
 import { VcsStatusBroadcaster } from "../vcs/VcsStatusBroadcaster.ts";
+import { AgentAlerts } from "../notifications/AgentAlerts.ts";
 import { buildCodexAdditionalContext } from "./CodexDeveloperInstructions.ts";
 import { DocumentText } from "./DocumentText.ts";
 import { EnvironmentThemeService } from "../environmentTheme.ts";
@@ -91,6 +92,7 @@ const toolHandlerServices = Layer.mergeAll(
   Layer.mock(ScheduledTaskService)({}),
   Layer.mock(SecretRequests)({}),
   Layer.mock(FeedbackStore)({}),
+  Layer.mock(AgentAlerts)({}),
   NodeSqliteClient.layer({ filename: ":memory:" }),
   ServerConfig.layerTest(process.cwd(), { prefix: "t3-agent-context-budget-" }),
   Layer.mock(ServerEnvironment)({}),
@@ -136,17 +138,20 @@ const layerAdvertisedTools = McpHttpServer.layerTools.pipe(
 );
 
 // Claude Code loads these tools up front instead of behind ToolSearch, outside this budget.
-it.effect("only request_secret and send_to_user ask Claude Code to load them up front", () =>
-  Effect.gen(function* () {
-    const mcp = yield* McpServer.McpServer;
-    const alwaysLoad = mcp.tools
-      .filter(({ tool }) => tool._meta?.["anthropic/alwaysLoad"] !== undefined)
-      .map(({ tool }) => [tool.name, tool._meta]);
-    expect(alwaysLoad).toEqual([
-      ["request_secret", { "anthropic/alwaysLoad": true }],
-      ["send_to_user", { "anthropic/alwaysLoad": true }],
-    ]);
-  }).pipe(Effect.provide(layerAdvertisedTools)),
+it.effect(
+  "only request_secret, send_to_user and notify_user ask Claude Code to load them up front",
+  () =>
+    Effect.gen(function* () {
+      const mcp = yield* McpServer.McpServer;
+      const alwaysLoad = mcp.tools
+        .filter(({ tool }) => tool._meta?.["anthropic/alwaysLoad"] !== undefined)
+        .map(({ tool }) => [tool.name, tool._meta]);
+      expect(alwaysLoad).toEqual([
+        ["request_secret", { "anthropic/alwaysLoad": true }],
+        ["send_to_user", { "anthropic/alwaysLoad": true }],
+        ["notify_user", { "anthropic/alwaysLoad": true }],
+      ]);
+    }).pipe(Effect.provide(layerAdvertisedTools)),
 );
 
 // CI rejects a PR that raises any value above main's agentContextBudget.json, so growth

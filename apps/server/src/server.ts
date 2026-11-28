@@ -815,11 +815,9 @@ const layerRuntimeCoreDependenciesBase = Layer.mergeAll(
     ),
   ),
   // One gate for the server, below hydration so the Claude adapter sees it: layers memoize by
-  // reference, so the runtime layer shares it.
-  Layer.provideMerge(ProviderInstallationGate.layer),
-  // Below hydration for the same reason: the Claude adapter offers alerts to the instance the
-  // WebSocket streams from.
-  Layer.provideMerge(AgentAlerts.layer),
+  // reference, so the runtime layer shares it. Alerts sit here for the same reason: the Claude
+  // adapter offers them to the instance the WebSocket streams from.
+  Layer.provideMerge(Layer.mergeAll(ProviderInstallationGate.layer, AgentAlerts.layer)),
   // Provider hydration builds the Claude runner, which reports agents to the same scanner the
   // terminal and preview layers share.
   Layer.provideMerge(layerPortScanner),

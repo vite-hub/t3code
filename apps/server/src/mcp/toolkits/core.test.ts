@@ -51,6 +51,7 @@ import * as ThreadManagement from "../../orchestration-v2/ThreadManagementServic
 import type * as ProjectionStore from "../../orchestration-v2/ProjectionStore.ts";
 import * as ThreadSearch from "../../orchestration-v2/ThreadSearch.ts";
 import * as PreviewBrowser from "../../preview/PreviewBrowser.ts";
+import * as AgentAlerts from "../../notifications/AgentAlerts.ts";
 import * as ProjectService from "../../project/ProjectService.ts";
 import * as ProviderRegistry from "../../provider/ProviderRegistry.ts";
 import * as SecretRequests from "../../secrets/SecretRequests.ts";
@@ -456,6 +457,8 @@ it.effect("captures send_to_user results for providers that drop MCP outputs", (
         Layer.provideMerge(McpHttpServer.layerInProcessMcpServer),
         Layer.provideMerge(McpProviderSessions.layer),
         Layer.provide(McpToolAccessTestkit.liveThreadsLayer),
+        Layer.provide(Layer.mock(AgentAlerts.AgentAlerts)({})),
+        Layer.provide(NodeCrypto.layer),
       ),
     ),
   ),

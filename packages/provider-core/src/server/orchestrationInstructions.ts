@@ -5,7 +5,7 @@ import type { McpToolExposureMode } from "./mcpSession.ts";
 export const t3CodeOrchestrationSections = (nativeSubagents = true): ReadonlyArray<string> => [
   `## T3 Code orchestration
 
-Ordinary coding tasks need no T3 tools.
+Ordinary coding tasks need no T3 tools, with one exception: when you end a turn waiting on the user (a question, a decision, a step only they can take), call \`notify_user\` first with one line saying what you need. Not for progress or finished work.
 
 - ${
     nativeSubagents
